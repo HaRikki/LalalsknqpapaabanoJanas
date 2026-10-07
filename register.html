@@ -1,0 +1,39 @@
+{% extends "base_public.html" %}
+{% block title %}Register — Anajak Host{% endblock %}
+{% block body_class %}login-page{% endblock %}
+{% block topbar_right %}<a class="btn btn-ghost btn-sm" href="/login">Login</a>{% endblock %}
+{% block content %}
+<div class="login-box">
+  <div class="container">
+    <div class="login-card">
+      <h1>Create account</h1>
+      <p class="muted mb-2">Start hosting in a few steps</p>
+      <div id="err" class="alert alert-error hidden"></div>
+      <form id="form">
+        <label>Full name</label>
+        <input type="text" name="full_name" placeholder="Your name" />
+        <label>Username <span class="req">*</span></label>
+        <input type="text" name="username" required placeholder="username" autocomplete="username" />
+        <label>Email <span class="req">*</span></label>
+        <input type="email" name="email" required placeholder="you@email.com" autocomplete="email" />
+        <label>Password <span class="req">*</span></label>
+        <input type="password" name="password" required minlength="6" placeholder="Min 6 characters" autocomplete="new-password" />
+        <button class="btn btn-gradient btn-block btn-lg" type="submit">Register</button>
+      </form>
+      {% include "_social_buttons.html" %}
+      <p class="muted mt-2" style="text-align:center">Have an account? <a href="/login">Login</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/auth/register', { method: 'POST', body: new FormData(e.target) });
+      location.href = '/dashboard';
+    } catch (err) { showErr(document.getElementById('err'), err.message); }
+  };
+</script>
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends "base_app.html" %}
+{% set active = 'settings' %}
+{% block title %}Account{% endblock %}
+{% block heading %}Account Settings{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Account Settings</h1><p class="muted">Profile, security & appearance</p></div></div>
+<div id="msg" class="alert alert-ok hidden"></div>
+<div id="err" class="alert alert-error hidden"></div>
+
+<div class="settings-tabs" id="setTabs">
+  <button type="button" class="stab active" data-tab="general"><svg class="ic"><use href="#i-gear"/></svg> General</button>
+  <button type="button" class="stab" data-tab="security"><svg class="ic"><use href="#i-shield"/></svg> Security</button>
+  <button type="button" class="stab" data-tab="appearance"><svg class="ic"><use href="#i-sun"/></svg> Appearance</button>
+</div>
+
+<!-- General -->
+<section id="tab-general" class="stab-panel">
+  <div class="panel-card profile-hero">
+    <div class="ph-banner"></div>
+    <div class="ph-body">
+      <div class="ph-avatar">{{ (user.username or 'A')[:1]|upper }}</div>
+      <form id="profile" class="ph-form">
+        <div class="form-grid">
+          <div><label>Full name</label><input name="full_name" value="{{ user.full_name or '' }}" placeholder="Your name" /></div>
+          <div><label>Username</label><input value="{{ user.username }}" disabled /></div>
+          <div class="span2"><label>Email</label><input value="{{ user.email }}" disabled /></div>
+        </div>
+        <button class="btn btn-primary btn-sm" type="submit">Update Profile</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- Security -->
+<section id="tab-security" class="stab-panel hidden">
+  <div class="panel-card">
+    <div class="card-title">Change password</div>
+    <p class="muted sm">Use a strong password you do not reuse elsewhere.</p>
+    <form id="password" class="mt-1">
+      {% if (user.auth_provider or 'password') == 'password' %}
+      <label>Current password</label>
+      <input type="password" name="current" required autocomplete="current-password" />
+      {% else %}
+      <p class="muted sm">You signed up with {{ user.auth_provider|capitalize }}. Set a password to also log in with your email.</p>
+      {% endif %}
+      <label>New password</label>
+      <input type="password" name="new_password" required minlength="6" autocomplete="new-password" />
+      <label>Confirm password</label>
+      <input type="password" name="confirm_password" required minlength="6" autocomplete="new-password" />
+      <button class="btn btn-primary btn-sm" type="submit">Update password</button>
+    </form>
+  </div>
+  <div class="panel-card">
+    <div class="card-title">Two-factor authentication</div>
+    <p class="muted sm">Add an extra layer of security with an authenticator app.</p>
+    <button type="button" class="btn btn-soft btn-sm" id="btn2fa" onclick="toast('2FA setup coming soon — enable in a future update')">Enable two-factor authentication</button>
+  </div>
+  <div class="panel-card">
+    <div class="card-title">Connected accounts</div>
+    <p class="muted sm">Link social accounts for faster sign-in (optional).</p>
+    <div class="link-list">
+      {% if providers.google or user.google_id %}
+      <div class="link-row"><span class="link-ico">G</span><div><b>Google</b><small class="muted">{% if user.google_id %}Linked{% else %}Not linked{% endif %}</small></div>
+        {% if user.google_id %}<button type="button" class="btn-soft btn-xs" onclick="unlinkP('google')">Unlink</button>
+        {% else %}<a class="btn-soft btn-xs" href="{{ providers.google_url }}">Link Google</a>{% endif %}</div>
+      {% endif %}
+      <div class="link-row"><span class="link-ico">GH</span><div><b>GitHub</b><small class="muted">Not linked</small></div><button type="button" class="btn-soft btn-xs" onclick="toast('Coming soon')">Link GitHub</button></div>
+      {% if providers.telegram or user.telegram_id %}
+      <div class="link-row"><span class="link-ico">TG</span><div><b>Telegram</b><small class="muted">{% if user.telegram_id %}Linked (ID {{ user.telegram_id }}){% else %}Not linked{% endif %}</small></div>
+        {% if user.telegram_id %}<button type="button" class="btn-soft btn-xs" onclick="unlinkP('telegram')">Unlink</button>
+        {% else %}<span id="tgLinkBox"><button type="button" class="btn-soft btn-xs" onclick="linkTelegram(this)">Link Telegram</button></span>{% endif %}</div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- Appearance -->
+<section id="tab-appearance" class="stab-panel hidden">
+  <div class="panel-card">
+    <div class="card-title">Appearance</div>
+
+    <div class="pref-row">
+      <div>
+        <div class="pref-label">Light / Dark Mode</div>
+        <p class="muted sm">Choose the style that suits you best</p>
+      </div>
+      <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+        <button type="button" class="seg-btn" data-theme="light"><svg class="ic"><use href="#i-sun"/></svg> Light</button>
+        <button type="button" class="seg-btn" data-theme="dark"><svg class="ic"><use href="#i-moon"/></svg> Dark</button>
+        <button type="button" class="seg-btn" data-theme="oled">OLED</button>
+      </div>
+    </div>
+
+    <div class="pref-row">
+      <div>
+        <div class="pref-label">Display Mode</div>
+        <p class="muted sm">Toggle between normal and compact display</p>
+      </div>
+      <label class="toggle-wrap">
+        <span class="muted sm">Normal</span>
+        <input type="checkbox" id="prefCompact" class="toggle" />
+        <span class="muted sm">Compact</span>
+      </label>
+    </div>
+
+    <div class="pref-row">
+      <div>
+        <div class="pref-label">Panel Sounds</div>
+        <p class="muted sm">Play a sound at crucial moments</p>
+      </div>
+      <label class="toggle-wrap">
+        <span class="muted sm">Off</span>
+        <input type="checkbox" id="prefSound" class="toggle" />
+        <span class="muted sm">On</span>
+      </label>
+    </div>
+
+    <div class="pref-row">
+      <div>
+        <div class="pref-label">Privacy Mode</div>
+        <p class="muted sm">Hide sensitive information in the panel</p>
+      </div>
+      <label class="toggle-wrap">
+        <span class="muted sm">Off</span>
+        <input type="checkbox" id="prefPrivacy" class="toggle" />
+        <span class="muted sm">On</span>
+      </label>
+    </div>
+
+    <div class="pref-row">
+      <div>
+        <div class="pref-label">Animations</div>
+        <p class="muted sm">Enable or disable animations in the panel</p>
+      </div>
+      <label class="toggle-wrap">
+        <span class="muted sm">Off</span>
+        <input type="checkbox" id="prefAnim" class="toggle" checked />
+        <span class="muted sm">On</span>
+      </label>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  function ok(t){ const m=document.getElementById('msg'); document.getElementById('err').classList.add('hidden'); m.textContent=t; m.classList.remove('hidden'); }
+  async function unlinkP(p){
+    if(!confirm('Unlink '+p+'?')) return;
+    try { await api('/api/settings/unlink/'+p, {method:'POST'}); location.href='/settings?unlinked='+p; }
+    catch(err){ showErr(document.getElementById('err'), err.message); }
+  }
+  async function linkTelegram(btn){
+    btn.disabled = true;
+    try { const r = await telegramAuth('{{ providers.telegram_bot_id }}', 'link'); location.href = r.redirect; }
+    catch(err){ showErr(document.getElementById('err'), err.message); btn.disabled = false; }
+  }
+  (function(){
+    const q=new URLSearchParams(location.search);
+    if(q.get('linked')) ok(q.get('linked')+' linked');
+    if(q.get('unlinked')) ok(q.get('unlinked')+' unlinked');
+    if(q.get('error')) showErr(document.getElementById('err'), q.get('error'));
+    if(q.toString()) { history.replaceState(null,'','/settings'); document.querySelector('#setTabs .stab[data-tab=security]')?.click(); }
+  })();
+  document.querySelectorAll('#setTabs .stab').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#setTabs .stab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.stab-panel').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-'+b.dataset.tab).classList.remove('hidden');
+  });
+  document.getElementById('profile').onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/settings/profile', { method: 'POST', body: new FormData(e.target) }); ok('Profile saved'); }
+    catch (err) { showErr(document.getElementById('err'), err.message); }
+  };
+  document.getElementById('password').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    if(fd.get('new_password') !== fd.get('confirm_password')){ showErr(document.getElementById('err'), 'Passwords do not match'); return; }
+    try { await api('/api/settings/password', { method: 'POST', body: fd }); ok('Password updated'); e.target.reset(); }
+    catch (err) { showErr(document.getElementById('err'), err.message); }
+  };
+
+  /* Appearance prefs */
+  const KEY = {
+    theme: 'anajak-theme',
+    compact: 'anajak-compact',
+    sound: 'anajak-sound',
+    privacy: 'anajak-privacy',
+    anim: 'anajak-anim'
+  };
+  function applyTheme(t){
+    document.body.classList.remove('theme-dark','theme-oled');
+    document.documentElement.classList.remove('pre-dark');
+    if(t === 'dark'){ document.body.classList.add('theme-dark'); document.documentElement.classList.add('pre-dark'); }
+    if(t === 'oled'){ document.body.classList.add('theme-dark','theme-oled'); document.documentElement.classList.add('pre-dark'); }
+    try { localStorage.setItem(KEY.theme, t); } catch(e){}
+    document.querySelectorAll('#themeSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === t));
+  }
+  function applyCompact(on){
+    document.body.classList.toggle('compact', !!on);
+    try { localStorage.setItem(KEY.compact, on ? '1' : '0'); } catch(e){}
+  }
+  function applyPrivacy(on){
+    document.body.classList.toggle('privacy-mode', !!on);
+    try { localStorage.setItem(KEY.privacy, on ? '1' : '0'); } catch(e){}
+  }
+  function applyAnim(on){
+    document.body.classList.toggle('no-anim', !on);
+    try { localStorage.setItem(KEY.anim, on ? '1' : '0'); } catch(e){}
+  }
+  (function initPrefs(){
+    let theme = 'light';
+    try { theme = localStorage.getItem(KEY.theme) || 'light'; } catch(e){}
+    if(theme === 'dark' || document.body.classList.contains('theme-dark')) theme = document.body.classList.contains('theme-oled') ? 'oled' : (theme || 'dark');
+    applyTheme(theme);
+    const compact = (localStorage.getItem(KEY.compact) === '1');
+    const sound = (localStorage.getItem(KEY.sound) === '1');
+    const privacy = (localStorage.getItem(KEY.privacy) === '1');
+    const anim = localStorage.getItem(KEY.anim) !== '0';
+    document.getElementById('prefCompact').checked = compact; applyCompact(compact);
+    document.getElementById('prefSound').checked = sound;
+    document.getElementById('prefPrivacy').checked = privacy; applyPrivacy(privacy);
+    document.getElementById('prefAnim').checked = anim; applyAnim(anim);
+  })();
+  document.querySelectorAll('#themeSeg .seg-btn').forEach(b => b.onclick = () => applyTheme(b.dataset.theme));
+  document.getElementById('prefCompact').onchange = e => applyCompact(e.target.checked);
+  document.getElementById('prefSound').onchange = e => { try { localStorage.setItem(KEY.sound, e.target.checked ? '1' : '0'); } catch(x){}; toast(e.target.checked ? 'Sounds on' : 'Sounds off'); };
+  document.getElementById('prefPrivacy').onchange = e => applyPrivacy(e.target.checked);
+  document.getElementById('prefAnim').onchange = e => applyAnim(e.target.checked);
+</script>
+{% endblock %}

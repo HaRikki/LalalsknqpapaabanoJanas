@@ -1,0 +1,1350 @@
+{% extends "base_app.html" %}
+{% set active = 'admin' %}
+{% block title %}Admin{% endblock %}
+{% block heading %}Admin panel{% endblock %}
+{% block content %}
+<style>
+  .admin-search-bar{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+  .admin-search-bar input{flex:1;min-width:160px;max-width:420px}
+  .admin-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.75rem;margin-bottom:1.25rem}
+  .admin-stats .stat{padding:.85rem 1rem}
+  .admin-stats .stat .k{font-size:.72rem;opacity:.7;text-transform:uppercase;letter-spacing:.03em}
+  .admin-stats .stat .v{font-size:1.35rem;font-weight:700;margin-top:.15rem}
+  .admin-stats .stat .s{font-size:.75rem;opacity:.65;margin-top:.1rem}
+  .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}
+  @media(max-width:900px){.chart-row{grid-template-columns:1fr}}
+  .chart-card{padding:1rem}
+  .chart-bars{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:.75rem}
+  .chart-bars .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end}
+  .chart-bars .bar{width:100%;max-width:36px;background:var(--green,#1f9d6a);border-radius:4px 4px 0 0;min-height:2px;transition:height .3s}
+  .chart-bars .bar-lbl{font-size:.65rem;opacity:.7;margin-top:4px}
+  .activity-list{max-height:320px;overflow:auto}
+  .activity-item{display:flex;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--border);font-size:.88rem}
+  .activity-item .t{opacity:.6;font-size:.75rem;white-space:nowrap}
+  .filter-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:center}
+  .filter-row input,.filter-row select{max-width:200px}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .badge{display:inline-block;padding:.15rem .45rem;border-radius:6px;font-size:.72rem;font-weight:600}
+  .badge-ok{background:rgba(31,157,106,.15);color:#1f9d6a}
+  .badge-warn{background:rgba(184,134,11,.15);color:#b8860b}
+  .badge-err{background:rgba(248,113,113,.15);color:#f87171}
+  .badge-muted{background:rgba(128,128,128,.12);color:inherit;opacity:.8}
+  .admin-nav{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem}
+  .admin-sub{margin-bottom:1rem}
+  .asubset{display:flex;flex-wrap:wrap;gap:.35rem}
+  @media(max-width:640px){
+    .admin-stats{grid-template-columns:repeat(2,1fr)}
+    .admin-stats .stat .v{font-size:1.1rem}
+    .table thead{display:none}
+    .table tr{display:block;border:1px solid var(--border);border-radius:10px;margin-bottom:.6rem;padding:.5rem}
+    .table td{display:flex;justify-content:space-between;padding:.35rem .4rem;border:none}
+    .table td::before{content:attr(data-label);font-weight:600;opacity:.7;margin-right:.5rem}
+  }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1>Admin panel</h1>
+    <p class="muted">Anajak Host — real-time management</p>
+  </div>
+</div>
+
+<div class="admin-search-bar">
+  <input type="search" id="globalSearch" class="input" placeholder="Search user, hosting, order, domain, ticket…" autocomplete="off"/>
+  <button class="btn btn-ghost btn-sm" type="button" onclick="doGlobalSearch()">Search</button>
+</div>
+<div id="searchResults" class="card hidden mb-2" style="padding:1rem"></div>
+
+<div class="admin-stats" id="dashStats">
+  <div class="stat"><div class="k">Users</div><div class="v">{{ stats.users }}</div><div class="s">{{ stats.users_active }} active · {{ stats.users_suspended }} suspended</div></div>
+  <div class="stat"><div class="k">Hosting</div><div class="v">{{ stats.projects }}</div><div class="s">{{ stats.running }} running · {{ stats.stopped }} stopped</div></div>
+  <div class="stat"><div class="k">Error / Expired</div><div class="v">{{ stats.error }} / {{ stats.expired }}</div></div>
+  <div class="stat"><div class="k">Revenue total</div><div class="v">${{ '%.2f'|format(stats.revenue_total) }}</div><div class="s">Today ${{ '%.2f'|format(stats.revenue_today) }} · Month ${{ '%.2f'|format(stats.revenue_month) }}</div></div>
+  <div class="stat"><div class="k">Orders pending</div><div class="v">{{ stats.pending_orders }}</div><div class="s">{{ stats.orders_paid }} paid · {{ stats.orders_failed }} failed</div></div>
+  <div class="stat"><div class="k">Domains</div><div class="v">{{ stats.domains }}</div><div class="s">{{ stats.domains_active }} active</div></div>
+</div>
+
+<div class="chart-row">
+  <div class="card chart-card">
+    <strong>Revenue (7 days)</strong>
+    <div class="chart-bars" id="chartRevenue"></div>
+  </div>
+  <div class="card chart-card">
+    <strong>New users / hosting / orders (7 days)</strong>
+    <div class="chart-bars" id="chartActivity"></div>
+  </div>
+</div>
+
+<div class="card mb-2">
+  <strong>Recent activity</strong>
+  <div class="activity-list" id="activityList">
+    {% for a in activity %}
+    <div class="activity-item">
+      <div style="flex:1">
+        <b>{{ a.action }}</b>
+        {% if a.detail %}<span class="muted"> — {{ a.detail }}</span>{% endif %}
+      </div>
+      <div class="t">{{ a.time.strftime('%Y-%m-%d %H:%M') if a.time else '' }}</div>
+    </div>
+    {% else %}
+    <p class="muted">No recent activity</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="admin-nav" id="adminGroups">
+  <button class="agroup active" data-group="access"><svg class="ic"><use href="#i-user"/></svg> Users</button>
+  <button class="agroup" data-group="hosting"><svg class="ic"><use href="#i-server"/></svg> Hosting</button>
+  <button class="agroup" data-group="deploy"><svg class="ic"><use href="#i-term"/></svg> Deployments</button>
+  <button class="agroup" data-group="domains"><svg class="ic"><use href="#i-globe"/></svg> Domains</button>
+  <button class="agroup" data-group="sales"><svg class="ic"><use href="#i-card"/></svg> Orders</button>
+  <button class="agroup" data-group="payment"><svg class="ic"><use href="#i-card"/></svg> Payment</button>
+  <button class="agroup" data-group="comms"><svg class="ic"><use href="#i-help"/></svg> Support</button>
+  <button class="agroup" data-group="server"><svg class="ic"><use href="#i-server"/></svg> Server</button>
+  <button class="agroup" data-group="backup"><svg class="ic"><use href="#i-archive"/></svg> Backups</button>
+  <button class="agroup" data-group="security"><svg class="ic"><use href="#i-shield"/></svg> Security</button>
+  <button class="agroup" data-group="integrations"><svg class="ic"><use href="#i-globe"/></svg> Integrations</button>
+  <button class="agroup" data-group="files"><svg class="ic"><use href="#i-folder"/></svg> File Manager</button>
+  <button class="agroup" data-group="settings"><svg class="ic"><use href="#i-gear"/></svg> Settings</button>
+</div>
+<div class="admin-sub" id="adminSub">
+  <div class="asubset" data-group="access">
+    <button class="tab active" data-tab="users">All Users</button>
+    <button class="tab" data-tab="logins">Login History</button>
+    <button class="tab" data-tab="auth">Login (Google / Telegram)</button>
+  </div>
+  <div class="asubset hidden" data-group="hosting">
+    <button class="tab" data-tab="projects">All Hosting</button>
+    <button class="tab" data-tab="plans">Plans</button>
+    <button class="tab" data-tab="games">Game templates</button>
+  </div>
+  <div class="asubset hidden" data-group="deploy">
+    <button class="tab" data-tab="deployments">Deployments</button>
+  </div>
+  <div class="asubset hidden" data-group="domains">
+    <button class="tab" data-tab="domains">All Domains</button>
+  </div>
+  <div class="asubset hidden" data-group="sales">
+    <button class="tab" data-tab="orders">Orders</button>
+    <button class="tab" data-tab="coupons">Coupons</button>
+  </div>
+  <div class="asubset hidden" data-group="payment">
+    <button class="tab" data-tab="pay">ABA KHQR settings</button>
+    <button class="tab" data-tab="paytx">Transactions</button>
+  </div>
+  <div class="asubset hidden" data-group="comms">
+    <button class="tab" data-tab="tickets">Tickets</button>
+    <button class="tab" data-tab="broadcast">Broadcast</button>
+  </div>
+  <div class="asubset hidden" data-group="server">
+    <button class="tab" data-tab="system">Server status</button>
+  </div>
+  <div class="asubset hidden" data-group="backup">
+    <button class="tab" data-tab="backups">Backups</button>
+  </div>
+  <div class="asubset hidden" data-group="security">
+    <button class="tab" data-tab="audit">Audit log</button>
+    <button class="tab" data-tab="blocked">Blocked IPs</button>
+    <button class="tab" data-tab="sessions">Admin Sessions</button>
+  </div>
+  <div class="asubset hidden" data-group="integrations">
+    <button class="tab" data-tab="integrations">API &amp; Integrations</button>
+    <button class="tab" data-tab="webhooks">Webhooks</button>
+  </div>
+  <div class="asubset hidden" data-group="files">
+    <button class="tab" data-tab="filemgr">File Manager</button>
+  </div>
+  <div class="asubset hidden" data-group="settings">
+    <button class="tab" data-tab="settings">General settings</button>
+  </div>
+</div>
+
+<div id="tab-users" class="card table-wrap">
+  <div class="filter-row">
+    <input type="search" id="userFilter" class="input" placeholder="Filter email / username…" oninput="filterUsers()"/>
+    <select id="userStatusFilter" class="input" onchange="filterUsers()">
+      <option value="">All status</option>
+      <option value="active">Active</option>
+      <option value="suspended">Suspended</option>
+    </select>
+  </div>
+  <table class="table" id="userTable">
+    <thead><tr><th>ID</th><th>Email</th><th>Username</th><th>Role</th><th>Sign-in</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="userRows">
+      {% for u in users %}
+      <tr data-status="{{ 'suspended' if u.is_suspended else 'active' }}" data-search="{{ u.email }} {{ u.username }}">
+        <td data-label="ID">{{ u.id }}</td>
+        <td data-label="Email">{{ u.email }}</td>
+        <td data-label="Username">{{ u.username }}</td>
+        <td data-label="Role">{{ u.role }}</td>
+        <td data-label="Sign-in">{{ u.auth_provider or 'password' }}{% if u.google_id %} · G{% endif %}{% if u.telegram_id %} · TG{% endif %}</td>
+        <td data-label="Status">{% if u.is_suspended %}<span class="badge badge-err">suspended</span>{% else %}<span class="badge badge-ok">active</span>{% endif %}</td>
+        <td data-label="Actions">
+          <button class="btn btn-ghost btn-sm" onclick="viewUser({{ u.id }})">View</button>
+          {% if u.role != 'admin' %}
+          <button class="btn btn-ghost btn-sm" onclick="suspend({{ u.id }})">Suspend</button>
+          <button class="btn btn-ghost btn-sm" onclick="activate({{ u.id }})">Activate</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetPw({{ u.id }})">Reset PW</button>
+          <button class="btn btn-danger btn-sm" onclick="delUser({{ u.id }})">Delete</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="logModal" class="card hidden mb-2" style="padding:1.25rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+    <strong id="logTitle">Logs</strong>
+    <button class="btn btn-ghost btn-sm" onclick="qid('logModal').classList.add('hidden')">Close</button>
+  </div>
+  <pre id="logBody" style="max-height:360px;overflow:auto;font-size:.78rem;white-space:pre-wrap"></pre>
+</div>
+
+<div id="userModal" class="card hidden mb-2" style="padding:1.25rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <strong id="umTitle">User detail</strong>
+    <button class="btn btn-ghost btn-sm" onclick="qid('userModal').classList.add('hidden')">Close</button>
+  </div>
+  <div id="umBody" class="muted">Loading…</div>
+</div>
+
+<div id="tab-projects" class="card table-wrap hidden">
+  <div class="filter-row">
+    <input type="search" id="projFilter" class="input" placeholder="Filter name…" oninput="filterProjects()"/>
+    <select id="projStatusFilter" class="input" onchange="filterProjects()">
+      <option value="">All status</option>
+      <option value="running">Running</option>
+      <option value="stopped">Stopped</option>
+      <option value="error">Error</option>
+      <option value="deploying">Deploying</option>
+    </select>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Name</th><th>User</th><th>Type</th><th>Status</th><th>RAM</th><th>CPU</th><th>Expires</th><th>Actions</th></tr></thead>
+    <tbody id="projRows">
+      {% for p in projects %}
+      <tr data-status="{{ p.status }}" data-search="{{ p.name }} {{ p.user_id }}">
+        <td data-label="ID">{{ p.id }}</td>
+        <td data-label="Name"><a href="/project/{{ p.id }}">{{ p.name }}</a></td>
+        <td data-label="User">{{ p.user_id }}</td>
+        <td data-label="Type">{{ p.project_type }}</td>
+        <td data-label="Status"><span class="badge {% if p.status=='running' %}badge-ok{% elif p.status=='error' %}badge-err{% else %}badge-muted{% endif %}">{{ p.status }}</span></td>
+        <td data-label="RAM">{{ p.ram_mb }} MB</td>
+        <td data-label="CPU">{{ p.cpu }}</td>
+        <td data-label="Expires">{{ p.expires_at.strftime('%Y-%m-%d') if p.expires_at else '—' }}</td>
+        <td data-label="Actions">
+          <button class="btn btn-ghost btn-sm" onclick="pAct({{ p.id }},'start')">Start</button>
+          <button class="btn btn-ghost btn-sm" onclick="pAct({{ p.id }},'stop')">Stop</button>
+          <button class="btn btn-ghost btn-sm" onclick="pAct({{ p.id }},'restart')">Restart</button>
+          <button class="btn btn-danger btn-sm" onclick="forceStop({{ p.id }})">Force</button>
+          <button class="btn btn-ghost btn-sm" onclick="extendProj({{ p.id }})">Extend</button>
+          <button class="btn btn-ghost btn-sm" onclick="viewHostLogs({{ p.id }})">Logs</button>
+          <button class="btn btn-danger btn-sm" onclick="pDel({{ p.id }})">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-orders" class="card table-wrap hidden">
+  <div class="filter-row">
+    <select id="orderStatusFilter" class="input" onchange="filterOrders()">
+      <option value="">All</option>
+      <option value="pending">Pending</option>
+      <option value="awaiting_confirm">Awaiting confirm</option>
+      <option value="paid">Paid</option>
+      <option value="failed">Failed</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>User</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody id="orderRows">
+      {% for o in orders %}
+      <tr data-status="{{ o.status }}">
+        <td data-label="ID">#{{ o.id }}</td>
+        <td data-label="User">{{ o.user_id }}</td>
+        <td data-label="Amount">${{ '%.2f'|format(o.amount) }}</td>
+        <td data-label="Method">{{ o.payment_method or '—' }}</td>
+        <td data-label="Status"><span class="badge {% if o.status=='paid' %}badge-ok{% elif o.status in ('failed','cancelled') %}badge-err{% else %}badge-warn{% endif %}">{{ o.status }}</span></td>
+        <td data-label="Date">{{ o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '' }}</td>
+        <td data-label="Actions">
+          {% if o.status in ('pending', 'awaiting_confirm') %}
+          <button class="btn btn-ghost btn-sm" onclick="confirmOrder({{ o.id }})">Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectOrder({{ o.id }})">Reject</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelOrder({{ o.id }})">Cancel</button>
+          {% elif o.status == 'paid' %}
+          <button class="btn btn-danger btn-sm" onclick="refundOrder({{ o.id }})">Refund</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-plans" class="card hidden">
+  <table class="table">
+    <thead><tr><th>Name</th><th>Slug</th><th>RAM</th><th>CPU</th><th>Storage</th><th>Price/mo</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+      {% for pl in plans %}
+      <tr>
+        <td>{{ pl.name }}</td><td>{{ pl.slug }}</td><td>{{ pl.ram_mb }} MB</td><td>{{ pl.cpu }}</td>
+        <td>{{ pl.storage_gb }} GB</td><td>${{ '%.2f'|format(pl.price_monthly) }}</td>
+        <td>{% if pl.is_active %}<span class="badge badge-ok">yes</span>{% else %}<span class="badge badge-muted">no</span>{% endif %}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="togglePlan({{ pl.id }})">Toggle</button> <button class="btn btn-danger btn-sm" onclick="deletePlan({{ pl.id }})">Delete</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <hr style="margin:1rem 0;border-color:var(--border)"/>
+  <h3>Add plan</h3>
+  <div class="grid grid-2" style="gap:.5rem;max-width:640px">
+    <input class="input" id="pn" placeholder="Name"/>
+    <input class="input" id="ps" placeholder="Slug"/>
+    <input class="input" id="pr" type="number" placeholder="RAM MB" value="512"/>
+    <input class="input" id="pc" type="number" step="0.1" placeholder="CPU" value="1"/>
+    <input class="input" id="pst" type="number" placeholder="Storage GB" value="5"/>
+    <input class="input" id="pp" type="number" step="0.01" placeholder="Price monthly" value="1"/>
+  </div>
+  <button class="btn btn-primary mt-1" onclick="addPlan()">Add plan</button>
+</div>
+
+<div id="tab-games" class="card hidden">
+  <table class="table">
+    <thead><tr><th>Name</th><th>Slug</th><th>Image</th><th>Port</th></tr></thead>
+    <tbody>
+      {% for g in games %}
+      <tr><td>{{ g.name }}</td><td>{{ g.slug }}</td><td>{{ g.docker_image or '—' }}</td><td>{{ g.default_port }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <hr style="margin:1rem 0;border-color:var(--border)"/>
+  <div class="grid grid-2" style="gap:.5rem;max-width:640px">
+    <input class="input" id="gn" placeholder="Name"/>
+    <input class="input" id="gs" placeholder="Slug"/>
+    <input class="input" id="gi" placeholder="Docker image"/>
+    <input class="input" id="gp" type="number" placeholder="Port" value="25565"/>
+  </div>
+  <button class="btn btn-primary mt-1" onclick="addGame()">Add template</button>
+</div>
+
+<div id="tab-domains" class="card table-wrap hidden">
+  <table class="table">
+    <thead><tr><th>ID</th><th>Domain</th><th>User</th><th>Project</th><th>Status</th><th>SSL</th><th>Created</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for d in domains %}
+      <tr>
+        <td data-label="ID">{{ d.id }}</td>
+        <td data-label="Domain">{{ d.domain }}</td>
+        <td data-label="User">{{ d.user_id }}</td>
+        <td data-label="Project">{{ d.project_id }}</td>
+        <td data-label="Status"><span class="badge {% if d.status=='active' %}badge-ok{% else %}badge-warn{% endif %}">{{ d.status }}</span></td>
+        <td data-label="SSL">{{ d.ssl_status }}</td>
+        <td data-label="Created">{{ d.created_at.strftime('%Y-%m-%d') if d.created_at else '' }}</td>
+        <td data-label="Actions">
+          <button class="btn btn-ghost btn-sm" onclick="verifyDomain({{ d.id }})">Verify</button>
+          <button class="btn btn-ghost btn-sm" onclick="setSsl({{ d.id }},'active')">SSL ON</button>
+          <button class="btn btn-danger btn-sm" onclick="removeDomain({{ d.id }})">Remove</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="muted">No domains yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-deployments" class="card table-wrap hidden">
+  <table class="table">
+    <thead><tr><th>ID</th><th>Project</th><th>User</th><th>Repo</th><th>Branch</th><th>Status</th><th>Started</th><th>Finished</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for d in deployments %}
+      <tr>
+        <td data-label="ID">{{ d.id }}</td>
+        <td data-label="Project">{{ d.project_id }}</td>
+        <td data-label="User">{{ d.user_id }}</td>
+        <td data-label="Repo" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">{{ d.repo_url }}</td>
+        <td data-label="Branch">{{ d.branch }}</td>
+        <td data-label="Status"><span class="badge {% if d.status=='success' %}badge-ok{% elif d.status=='failed' %}badge-err{% else %}badge-warn{% endif %}">{{ d.status }}</span></td>
+        <td data-label="Started">{{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at else '' }}</td>
+        <td data-label="Finished">{{ d.finished_at.strftime('%Y-%m-%d %H:%M') if d.finished_at else '—' }}</td>
+        <td data-label="Actions">
+          <button class="btn btn-ghost btn-sm" onclick="viewDepLog({{ d.id }})">Logs</button>
+          {% if d.status not in ('success','failed','cancelled') %}
+          <button class="btn btn-danger btn-sm" onclick="cancelDep({{ d.id }})">Cancel</button>
+          {% endif %}
+          {% if d.status in ('failed','cancelled') %}
+          <button class="btn btn-ghost btn-sm" onclick="retryDep({{ d.id }})">Retry</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="muted">No deployments yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-backups" class="card table-wrap hidden">
+  <table class="table">
+    <thead><tr><th>ID</th><th>Project</th><th>Filename</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for b in backups %}
+      <tr>
+        <td data-label="ID">{{ b.id }}</td>
+        <td data-label="Project">{{ b.project_id }}</td>
+        <td data-label="File">{{ b.filename }}</td>
+        <td data-label="Size">{{ (b.size_bytes / 1024 / 1024)|round(2) }} MB</td>
+        <td data-label="Created">{{ b.created_at.strftime('%Y-%m-%d %H:%M') if b.created_at else '' }}</td>
+        <td data-label="Actions">
+          <button class="btn btn-ghost btn-sm" onclick="restoreBackup({{ b.id }})">Restore</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteBackup({{ b.id }})">Delete</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No backups yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="mt-1 filter-row">
+    <input class="input" id="bakProjId" type="number" placeholder="Project ID to backup"/>
+    <button class="btn btn-primary btn-sm" onclick="createBackup()">Create Backup</button>
+  </div>
+</div>
+
+<div id="tab-tickets" class="card table-wrap hidden">
+  <table class="table">
+    <thead><tr><th>ID</th><th>User</th><th>Subject</th><th>Status</th><th>Updated</th><th>Priority</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td data-label="ID">#{{ t.id }}</td>
+        <td data-label="User">{{ t.user_id }}</td>
+        <td data-label="Subject"><a href="/support/{{ t.id }}">{{ t.subject }}</a></td>
+        <td data-label="Status"><span class="badge {% if t.status=='open' %}badge-warn{% elif t.status=='closed' %}badge-muted{% else %}badge-ok{% endif %}">{{ t.status }}</span></td>
+        <td data-label="Updated">{{ t.updated_at.strftime('%Y-%m-%d %H:%M') if t.updated_at else '' }}</td>
+        <td data-label="Priority">
+          <select class="input" style="width:auto;min-width:90px" onchange="setPriority({{ t.id }}, this.value)">
+            <option value="low" {% if t.priority=='low' %}selected{% endif %}>Low</option>
+            <option value="normal" {% if (t.priority or 'normal')=='normal' %}selected{% endif %}>Normal</option>
+            <option value="high" {% if t.priority=='high' %}selected{% endif %}>High</option>
+            <option value="urgent" {% if t.priority=='urgent' %}selected{% endif %}>Urgent</option>
+          </select>
+        </td>
+        <td data-label="Actions">
+          {% if t.status != 'closed' %}
+          <button class="btn btn-ghost btn-sm" onclick="closeTicket({{ t.id }})">Close</button>
+          {% else %}
+          <button class="btn btn-ghost btn-sm" onclick="reopenTicket({{ t.id }})">Reopen</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-broadcast" class="card hidden">
+  <h3>Broadcast notification</h3>
+  <div class="filter-row mb-1">
+    <select id="bcTarget" class="input">
+      <option value="all">All users</option>
+      <option value="active">Active users</option>
+      <option value="selected">Selected user IDs</option>
+      <option value="expiring">Hosting expiring (7 days)</option>
+      <option value="expired">Hosting expired</option>
+    </select>
+    <input class="input" id="bcUserIds" placeholder="User IDs (comma) if selected" style="max-width:240px"/>
+  </div>
+  <input class="input mb-1" id="bt" placeholder="Title" style="max-width:480px"/>
+  <textarea class="input mb-1" id="bb" rows="4" placeholder="Message body" style="max-width:480px;width:100%"></textarea>
+  <button class="btn btn-primary" onclick="broadcast()">Send broadcast</button>
+</div>
+
+<div id="tab-coupons" class="card hidden">
+  <div id="couponList" class="mb-2"></div>
+  <h3>Create coupon</h3>
+  <form id="couponForm" class="grid grid-2" style="gap:.5rem;max-width:560px">
+    <input class="input" name="code" placeholder="Code" required/>
+    <select class="input" name="discount_type"><option value="percent">Percent %</option><option value="fixed">Fixed $</option></select>
+    <input class="input" name="discount_value" type="number" step="0.01" placeholder="Value" required/>
+    <input class="input" name="max_uses" type="number" placeholder="Max uses (0=∞)" value="0"/>
+    <input class="input" name="min_amount" type="number" step="0.01" placeholder="Min order $" value="0"/>
+    <input class="input" name="expires_at" type="date" placeholder="Expiry"/>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+</div>
+
+<div id="tab-auth" class="card hidden">
+  <h3>Google / Telegram login</h3>
+  <p class="muted sm" id="authStatus">Loading…</p>
+  <p class="muted sm">Empty secret fields = keep existing secret (will not delete). Toggle ON only when credentials are ready.</p>
+  <div class="grid grid-2" style="gap:.75rem;max-width:640px;margin-top:.75rem">
+    <label class="chk"><input type="checkbox" id="au_gen"/> Enable Google login</label>
+    <label class="chk"><input type="checkbox" id="au_ten"/> Enable Telegram login</label>
+    <label class="chk" style="grid-column:1/-1"><input type="checkbox" id="au_signup"/> Allow signup via social login</label>
+    <label>Site URL (for OAuth redirect)<input class="input" id="au_site" placeholder="https://angker-smm.ndclub.top"/></label>
+    <label>Google Client ID<input class="input" id="au_gid" placeholder="….apps.googleusercontent.com"/></label>
+    <label>Google Client Secret<input class="input" id="au_gsec" type="password" placeholder="Leave blank to keep current"/></label>
+    <label>Telegram Bot Username<input class="input" id="au_tun" placeholder="MyBot"/></label>
+    <label>Telegram Bot Token<input class="input" id="au_ttok" type="password" placeholder="Leave blank to keep current"/></label>
+  </div>
+  <p class="muted sm mt-1" id="authHints"></p>
+  <div class="filter-row mt-1">
+    <button class="btn btn-primary" type="button" onclick="saveAuth()">Save</button>
+    <button class="btn btn-ghost" type="button" onclick="testTg()">Test Telegram</button>
+    <button class="btn btn-ghost" type="button" onclick="clearProv('google')">Clear Google only</button>
+    <button class="btn btn-ghost" type="button" onclick="clearProv('telegram')">Clear Telegram only</button>
+  </div>
+</div>
+
+
+<div id="tab-pay" class="card hidden">
+  <h3>ABA KHQR</h3>
+  <div class="grid grid-2" style="gap:.5rem;max-width:640px">
+    <label>API Key<input class="input" id="pay_key" type="password"/></label>
+    <label>Merchant ID<input class="input" id="pay_mid"/></label>
+    <label>Base URL<input class="input" id="pay_url" placeholder="https://..."/></label>
+  </div>
+  <div class="mt-1" style="display:flex;gap:.5rem">
+    <button class="btn btn-primary" onclick="savePay()">Save</button>
+    <button class="btn btn-ghost" onclick="testPay()">Test</button>
+  </div>
+</div>
+
+<div id="tab-paytx" class="card table-wrap hidden">
+  <div class="filter-row">
+    <select id="ptStatus" class="input" onchange="loadPayTx()">
+      <option value="">All</option>
+      <option value="pending">Pending</option>
+      <option value="paid">Paid</option>
+      <option value="failed">Failed</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="loadPayTx()">Refresh</button>
+  </div>
+  <p id="ptErr" class="muted hidden"></p>
+  <h4>Local ABA orders</h4>
+  <table class="table"><thead><tr><th>Order</th><th>Email</th><th>Amount</th><th>Status</th><th>Payment ID</th><th>Date</th><th></th></tr></thead>
+  <tbody id="ptLocal"></tbody></table>
+  <h4 class="mt-1">Remote</h4>
+  <table class="table"><thead><tr><th>Payment ID</th><th>User</th><th>Amount</th><th>Status</th><th>Credited</th></tr></thead>
+  <tbody id="ptRemote"></tbody></table>
+</div>
+
+<div id="tab-system" class="card hidden">
+  <div id="sysInfo" class="grid grid-4 mb-2">
+    <div class="stat"><div class="k">CPU</div><div class="v" id="sysCpu">—</div></div>
+    <div class="stat"><div class="k">RAM</div><div class="v" id="sysRam">—</div></div>
+    <div class="stat"><div class="k">Disk</div><div class="v" id="sysDisk">—</div></div>
+    <div class="stat"><div class="k">Uptime</div><div class="v" id="sysUp">—</div></div>
+  </div>
+  <p class="muted" id="sysExtra"></p>
+  <button class="btn btn-ghost btn-sm" onclick="loadSys()">Refresh</button>
+  <button class="btn btn-ghost btn-sm" onclick="loadProcs()">Processes</button>
+  <button class="btn btn-ghost btn-sm" onclick="loadServerLog()">Server log</button>
+  <div id="procBox" class="table-wrap mt-1 hidden"></div>
+  <pre id="serverLogBox" class="hidden" style="max-height:280px;overflow:auto;font-size:.8rem;background:var(--card);padding:.75rem;border-radius:8px;border:1px solid var(--border)"></pre>
+</div>
+
+<div id="tab-audit" class="card table-wrap hidden">
+  <div class="filter-row">
+    <input type="search" id="auditQ" class="input" placeholder="Search action / detail…" oninput="filterTable('auditRows', this.value)"/>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Admin</th><th>Action</th><th>Detail</th><th>Time</th></tr></thead>
+    <tbody id="auditRows">
+      {% for a in audits %}
+      <tr data-search="{{ a.action }} {{ a.detail or '' }}">
+        <td data-label="ID">{{ a.id }}</td>
+        <td data-label="Admin">{{ a.user_id or '—' }}</td>
+        <td data-label="Action">{{ a.action }}</td>
+        <td data-label="Detail">{{ a.detail or '' }}</td>
+        <td data-label="Time">{{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-logins" class="card table-wrap hidden">
+  <table class="table">
+    <thead><tr><th>Email</th><th>IP</th><th>Device / UA</th><th>Method</th><th>OK</th><th>Time</th></tr></thead>
+    <tbody>
+      {% for row in logins %}
+      {% set lh = row[0] %}{% set email = row[1] %}
+      <tr>
+        <td data-label="Email">{{ email }}</td>
+        <td data-label="IP">{{ lh.ip or '—' }}</td>
+        <td data-label="UA" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:.8rem">{{ lh.user_agent or '—' }}</td>
+        <td data-label="Method">{{ lh.method or 'password' }}</td>
+        <td data-label="OK">{% if lh.success %}<span class="badge badge-ok">yes</span>{% else %}<span class="badge badge-err">no</span>{% endif %}</td>
+        <td data-label="Time">{{ lh.created_at.strftime('%Y-%m-%d %H:%M') if lh.created_at else '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<div id="tab-blocked" class="card table-wrap hidden">
+  <div class="filter-row">
+    <input class="input" id="blockIp" placeholder="IP address"/>
+    <input class="input" id="blockReason" placeholder="Reason"/>
+    <button class="btn btn-danger btn-sm" onclick="blockIp()">Block IP</button>
+    <button class="btn btn-ghost btn-sm" onclick="loadBlocked()">Refresh</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>IP</th><th>Reason</th><th>By</th><th>Date</th><th></th></tr></thead>
+    <tbody id="blockedRows"><tr><td colspan="6" class="muted">Click Refresh</td></tr></tbody>
+  </table>
+</div>
+
+
+<div id="tab-sessions" class="card table-wrap hidden">
+  <div class="filter-row">
+    <button class="btn btn-ghost btn-sm" onclick="loadSessions()">Refresh</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>User</th><th>Role</th><th>IP</th><th>Device</th><th>Login</th><th></th></tr></thead>
+    <tbody id="sessionRows"><tr><td colspan="7" class="muted">Click Refresh</td></tr></tbody>
+  </table>
+</div>
+
+<div id="tab-integrations" class="card hidden">
+  <h3>Integrations</h3>
+  <p class="muted">Secrets are masked after save. Leave field empty or masked to keep current value.</p>
+  <div class="grid grid-2" style="gap:.5rem;max-width:720px">
+    <label>GitHub Token<input class="input" id="int_gh_token" type="password" placeholder="ghp_…"/></label>
+    <label>GitHub Client ID<input class="input" id="int_gh_cid"/></label>
+    <label>GitHub Client Secret<input class="input" id="int_gh_sec" type="password"/></label>
+    <label>Cloudflare API Token<input class="input" id="int_cf_token" type="password"/></label>
+    <label>Cloudflare Zone ID<input class="input" id="int_cf_zone"/></label>
+    <label>Cloudflare Account ID<input class="input" id="int_cf_acct"/></label>
+    <label>Telegram Notify Chat ID<input class="input" id="int_tg_chat"/></label>
+    <label>Webhook Signing Secret<input class="input" id="int_wh_sec" type="password"/></label>
+    <label>Auto Backup
+      <select class="input" id="int_ab_en"><option value="off">OFF</option><option value="on">ON</option></select>
+    </label>
+    <label>Auto Backup Hour (0-23)<input class="input" id="int_ab_hour" type="number" min="0" max="23" value="3"/></label>
+  </div>
+  <div class="mt-1" style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="saveIntegrations()">Save</button>
+    <button class="btn btn-ghost" onclick="runBackupAll()">Run backup all hostings now</button>
+  </div>
+  <p id="intStatus" class="muted mt-1"></p>
+</div>
+
+<div id="tab-webhooks" class="card hidden">
+  <div id="whList" class="mb-2"></div>
+  <h3>Add webhook</h3>
+  <div class="grid grid-2" style="gap:.5rem;max-width:640px">
+    <input class="input" id="wh_name" placeholder="Name"/>
+    <input class="input" id="wh_url" placeholder="https://example.com/hook"/>
+    <input class="input" id="wh_events" placeholder="order.paid,hosting.expired" value="order.paid"/>
+    <input class="input" id="wh_secret" placeholder="Optional secret"/>
+  </div>
+  <button class="btn btn-primary mt-1" onclick="addWebhook()">Create</button>
+</div>
+
+<div id="tab-filemgr" class="card hidden">
+  <div class="filter-row">
+    <input class="input" id="fmProjectId" type="number" placeholder="Hosting / Project ID"/>
+    <input class="input" id="fmPath" placeholder="Path (empty = root)" value=""/>
+    <button class="btn btn-primary btn-sm" onclick="fmList()">Open</button>
+    <button class="btn btn-ghost btn-sm" onclick="fmMkdir()">New Folder</button>
+    <button class="btn btn-ghost btn-sm" onclick="fmNewFile()">New File</button>
+    <label class="btn btn-ghost btn-sm" style="cursor:pointer">Upload<input type="file" id="fmUpload" style="display:none" onchange="fmDoUpload()"/></label>
+  </div>
+  <div id="fmBreadcrumb" class="muted mb-1" style="font-size:.85rem"></div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Actions</th></tr></thead>
+      <tbody id="fmRows"><tr><td colspan="4" class="muted">Enter Project ID and Open</td></tr></tbody>
+    </table>
+  </div>
+  <div id="fmEditor" class="hidden mt-1">
+    <strong id="fmEditName"></strong>
+    <textarea id="fmEditContent" class="input" rows="14" style="width:100%;font-family:monospace;font-size:.8rem"></textarea>
+    <button class="btn btn-primary btn-sm mt-1" onclick="fmSaveEdit()">Save file</button>
+    <button class="btn btn-ghost btn-sm" onclick="qid('fmEditor').classList.add('hidden')">Close</button>
+  </div>
+</div>
+
+<div id="tab-settings" class="card hidden">
+  <h3>Website settings</h3>
+  <p class="muted">Stored in system_settings table</p>
+  <div class="grid grid-2" style="gap:.5rem;max-width:640px" id="settingsForm">
+    <label>Website name<input class="input" name="site_name" id="set_site_name" placeholder="Anajak Host"/></label>
+    <label>Currency<input class="input" name="currency" id="set_currency" placeholder="USD"/></label>
+    <label>Telegram contact<input class="input" name="telegram_contact" id="set_tg" placeholder="@support"/></label>
+    <label>Support contact<input class="input" name="support_contact" id="set_support" placeholder="support@…"/></label>
+    <label>Timezone<input class="input" name="timezone" id="set_tz" placeholder="Asia/Phnom_Penh"/></label>
+    <label>Maintenance mode
+      <select class="input" name="maintenance_mode" id="set_maint">
+        <option value="off">OFF</option>
+        <option value="on">ON</option>
+      </select>
+    </label>
+    <label style="grid-column:1/-1">Maintenance message<textarea class="input" name="maintenance_message" id="set_maint_msg" rows="2"></textarea></label>
+    <label>Registration
+      <select class="input" name="registration_enabled" id="set_reg">
+        <option value="on">ON</option>
+        <option value="off">OFF</option>
+      </select>
+    </label>
+    <label>Auto start hosting
+      <select class="input" name="auto_start_default" id="set_autostart">
+        <option value="off">OFF</option>
+        <option value="on">ON</option>
+      </select>
+    </label>
+  </div>
+  <button class="btn btn-primary mt-1" onclick="saveSettings()">Save settings</button>
+</div>
+
+<script>
+  const qid = id => document.getElementById(id);
+  function esc(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  async function api(url, opts={}) {
+    const headers = { ...(opts.headers || {}) };
+    if (opts.body && !(opts.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+      if (typeof opts.body === 'object') opts = { ...opts, body: JSON.stringify(opts.body) };
+    }
+    const r = await fetch(url, { credentials: 'same-origin', ...opts, headers });
+    const t = await r.text();
+    let d; try { d = JSON.parse(t); } catch { d = { detail: t }; }
+    if (!r.ok) {
+      let msg = d.detail || d.message || r.statusText || 'Error';
+      if (Array.isArray(msg)) msg = msg.map(x => x.msg || JSON.stringify(x)).join(', ');
+      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+    return d;
+  }
+  async function postForm(url, obj) {
+    const fd = new FormData();
+    Object.entries(obj).forEach(([k,v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
+    return api(url, { method:'POST', body: fd });
+  }
+  function toast(msg, type) {
+    if (window.showToast) showToast(msg, type); else alert(msg);
+  }
+
+  document.querySelectorAll('.agroup').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.agroup').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const g = btn.dataset.group;
+      document.querySelectorAll('.asubset').forEach(s => s.classList.toggle('hidden', s.dataset.group !== g));
+      const first = document.querySelector('.asubset[data-group="'+g+'"] .tab');
+      if (first) first.click();
+    };
+  });
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+      const pane = qid('tab-' + btn.dataset.tab);
+      if (pane) pane.classList.remove('hidden');
+      if (btn.dataset.tab === 'system') loadSys();
+      if (btn.dataset.tab === 'auth') loadAuth();
+      if (btn.dataset.tab === 'pay') loadPay();
+      if (btn.dataset.tab === 'paytx') loadPayTx();
+      if (btn.dataset.tab === 'coupons') loadCoupons();
+      if (btn.dataset.tab === 'settings') loadSettings();
+      if (btn.dataset.tab === 'blocked') loadBlocked();
+      if (btn.dataset.tab === 'sessions') loadSessions();
+      if (btn.dataset.tab === 'integrations') loadIntegrations();
+      if (btn.dataset.tab === 'webhooks') loadWebhooks();
+    };
+  });
+
+  function filterTable(tbodyId, q) {
+    q = (q||'').toLowerCase();
+    qid(tbodyId).querySelectorAll('tr').forEach(tr => {
+      const hay = (tr.dataset.search || tr.textContent || '').toLowerCase();
+      tr.style.display = !q || hay.includes(q) ? '' : 'none';
+    });
+  }
+  function filterUsers() {
+    const st = qid('userStatusFilter').value;
+    const q = (qid('userFilter').value||'').toLowerCase();
+    qid('userRows').querySelectorAll('tr').forEach(tr => {
+      const okS = !st || tr.dataset.status === st;
+      const okQ = !q || (tr.dataset.search||'').toLowerCase().includes(q);
+      tr.style.display = okS && okQ ? '' : 'none';
+    });
+  }
+  function filterProjects() {
+    const st = qid('projStatusFilter').value;
+    const q = (qid('projFilter').value||'').toLowerCase();
+    qid('projRows').querySelectorAll('tr').forEach(tr => {
+      const okS = !st || tr.dataset.status === st;
+      const okQ = !q || (tr.dataset.search||'').toLowerCase().includes(q);
+      tr.style.display = okS && okQ ? '' : 'none';
+    });
+  }
+  function filterOrders() {
+    const st = qid('orderStatusFilter').value;
+    qid('orderRows').querySelectorAll('tr').forEach(tr => {
+      tr.style.display = !st || tr.dataset.status === st ? '' : 'none';
+    });
+  }
+
+  async function loadCharts() {
+    try {
+      const d = await api('/api/admin/dashboard');
+      const rev = d.chart || [];
+      const maxR = Math.max(1, ...rev.map(x => x.revenue));
+      qid('chartRevenue').innerHTML = rev.map(x =>
+        '<div class="bar-wrap"><div class="bar" style="height:'+Math.max(2, (x.revenue/maxR)*100)+'%" title="$'+x.revenue+'"></div><div class="bar-lbl">'+esc(x.label)+'</div></div>'
+      ).join('');
+      const maxA = Math.max(1, ...rev.map(x => x.users + x.hosting + x.orders));
+      qid('chartActivity').innerHTML = rev.map(x => {
+        const total = x.users + x.hosting + x.orders;
+        return '<div class="bar-wrap"><div class="bar" style="height:'+Math.max(2, (total/maxA)*100)+'%;background:#3b82f6" title="U:'+x.users+' H:'+x.hosting+' O:'+x.orders+'"></div><div class="bar-lbl">'+esc(x.label)+'</div></div>';
+      }).join('');
+    } catch (e) { console.warn(e); }
+  }
+  loadCharts();
+
+  async function doGlobalSearch() {
+    const q = qid('globalSearch').value.trim();
+    if (!q) { qid('searchResults').classList.add('hidden'); return; }
+    try {
+      const d = await api('/api/admin/search?q=' + encodeURIComponent(q));
+      let html = '';
+      if (d.users.length) html += '<div><b>Users</b><ul>' + d.users.map(u => '<li><a href="#" onclick="viewUser('+u.id+');return false">'+esc(u.email)+'</a> ('+esc(u.username)+') — '+esc(u.status)+'</li>').join('') + '</ul></div>';
+      if (d.hosting.length) html += '<div><b>Hosting</b><ul>' + d.hosting.map(p => '<li><a href="/project/'+p.id+'">'+esc(p.name)+'</a> #'+p.id+' — '+esc(p.status)+'</li>').join('') + '</ul></div>';
+      if (d.orders.length) html += '<div><b>Orders</b><ul>' + d.orders.map(o => '<li>#'+o.id+' $'+o.amount+' — '+esc(o.status)+'</li>').join('') + '</ul></div>';
+      if (d.domains.length) html += '<div><b>Domains</b><ul>' + d.domains.map(x => '<li>'+esc(x.domain)+' — '+esc(x.status)+'</li>').join('') + '</ul></div>';
+      if (d.tickets.length) html += '<div><b>Tickets</b><ul>' + d.tickets.map(t => '<li><a href="/support/'+t.id+'">#'+t.id+' '+esc(t.subject)+'</a> — '+esc(t.status)+'</li>').join('') + '</ul></div>';
+      if (!html) html = '<p class="muted">No results</p>';
+      const box = qid('searchResults');
+      box.innerHTML = html;
+      box.classList.remove('hidden');
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  qid('globalSearch').addEventListener('keydown', e => { if (e.key === 'Enter') doGlobalSearch(); });
+
+  async function suspend(id) { if (!confirm('Suspend user #'+id+'?')) return; await api('/api/admin/users/'+id+'/suspend',{method:'POST'}); toast('Suspended'); location.reload(); }
+  async function activate(id) { await api('/api/admin/users/'+id+'/activate',{method:'POST'}); toast('Activated'); location.reload(); }
+  async function delUser(id) { if (!confirm('DELETE user #'+id+' and all their hosting? This cannot be undone.')) return; await api('/api/admin/users/'+id+'/delete',{method:'POST'}); toast('Deleted'); location.reload(); }
+  async function resetPw(id) {
+    const pw = prompt('New password (min 6 chars):');
+    if (!pw) return;
+    try { await postForm('/api/admin/users/'+id+'/reset-password', { password: pw }); toast('Password reset'); }
+    catch (e) { toast(e.message, 'err'); }
+  }
+  async function viewUser(id) {
+    const modal = qid('userModal');
+    qid('umBody').textContent = 'Loading…';
+    modal.classList.remove('hidden');
+    try {
+      const d = await api('/api/admin/users/' + id);
+      qid('umTitle').textContent = d.email + ' (#' + d.id + ')';
+      let h = '<div class="grid grid-2" style="gap:.5rem">' +
+        '<div><b>Username</b><br>'+esc(d.username)+'</div>' +
+        '<div><b>Role</b><br>'+esc(d.role)+'</div>' +
+        '<div><b>Status</b><br>'+(d.is_suspended ? 'suspended' : 'active')+'</div>' +
+        '<div><b>Provider</b><br>'+esc(d.auth_provider||'password')+'</div>' +
+        '<div><b>Registered</b><br>'+esc((d.created_at||'').replace('T',' ').slice(0,16))+'</div>' +
+        '<div><b>Last login</b><br>'+esc((d.last_login||'—').replace('T',' ').slice(0,16))+'</div>' +
+        '<div><b>Total spent</b><br>$'+Number(d.spent).toFixed(2)+'</div></div>';
+      h += '<h4 class="mt-1">Hosting ('+d.projects.length+')</h4><ul>' +
+        d.projects.map(p => '<li><a href="/project/'+p.id+'">'+esc(p.name)+'</a> — '+esc(p.status)+' · '+p.ram_mb+'MB · exp '+esc((p.expires_at||'—').slice(0,10))+'</li>').join('') + '</ul>';
+      h += '<h4>Orders</h4><ul>' + d.orders.map(o => '<li>#'+o.id+' $'+o.amount+' — '+esc(o.status)+' · '+esc((o.created_at||'').slice(0,10))+'</li>').join('') + (d.orders.length?'':'<li class="muted">None</li>') + '</ul>';
+      h += '<h4>Login history</h4><ul style="font-size:.85rem">' + d.logins.slice(0,10).map(l => '<li>'+esc(l.ip||'')+' · '+esc((l.created_at||'').replace('T',' ').slice(0,16))+' · '+(l.success?'ok':'fail')+'</li>').join('') + (d.logins.length?'':'<li class="muted">None</li>') + '</ul>';
+      qid('umBody').innerHTML = h;
+    } catch (e) { qid('umBody').textContent = e.message; }
+  }
+
+  async function pAct(id, a) { try { await api('/api/projects/'+id+'/'+a,{method:'POST'}); toast(a+' ok'); location.reload(); } catch(e){ toast(e.message,'err'); } }
+  async function pDel(id) { if(!confirm('Delete hosting #'+id+'?')) return; try { await api('/api/projects/'+id,{method:'DELETE'}); location.reload(); } catch(e){ toast(e.message,'err'); } }
+  async function forceStop(id) { if(!confirm('Force stop #'+id+'?')) return; try { await api('/api/admin/projects/'+id+'/force-stop',{method:'POST'}); toast('Force stopped'); location.reload(); } catch(e){ toast(e.message,'err'); } }
+  async function extendProj(id) {
+    const days = prompt('Extend by how many days?', '30');
+    if (!days) return;
+    try { const r = await postForm('/api/admin/projects/'+id+'/extend', { days }); toast('Extended to ' + (r.expires_at||'').slice(0,10)); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+
+  async function confirmOrder(id) { if(!confirm('Approve order #'+id+'?')) return; await api('/api/admin/orders/'+id+'/confirm',{method:'POST'}); toast('Approved'); location.reload(); }
+  async function rejectOrder(id) { if(!confirm('Reject order #'+id+'?')) return; await api('/api/admin/orders/'+id+'/reject',{method:'POST'}); toast('Rejected'); location.reload(); }
+
+  async function togglePlan(id) { await api('/api/admin/plans/'+id+'/toggle',{method:'POST'}); location.reload(); }
+  async function addPlan() {
+    await postForm('/api/admin/plans', {
+      name: qid('pn').value, slug: qid('ps').value, ram_mb: qid('pr').value,
+      cpu: qid('pc').value, storage_gb: qid('pst').value, price_monthly: qid('pp').value
+    });
+    toast('Plan added'); location.reload();
+  }
+  async function addGame() {
+    await postForm('/api/admin/games', { name: qid('gn').value, slug: qid('gs').value, docker_image: qid('gi').value, default_port: qid('gp').value });
+    toast('Template added'); location.reload();
+  }
+
+  async function closeTicket(id) { await api('/api/admin/tickets/'+id+'/close',{method:'POST'}); toast('Closed'); location.reload(); }
+  async function reopenTicket(id) { await api('/api/admin/tickets/'+id+'/reopen',{method:'POST'}); toast('Reopened'); location.reload(); }
+
+  async function loadSys() {
+    const d = await api('/api/admin/system');
+    qid('sysCpu').textContent = d.cpu_percent + '%';
+    qid('sysRam').textContent = d.ram_used_gb + '/' + d.ram_total_gb + ' GB (' + d.ram_percent + '%)';
+    qid('sysDisk').textContent = d.disk_used_gb + '/' + d.disk_total_gb + ' GB (' + d.disk_percent + '%)';
+    qid('sysUp').textContent = d.uptime || '—';
+    qid('sysExtra').textContent = 'Load avg: ' + (d.load_avg||[]).join(', ') + ' · Processes: ' + d.running_processes + ' · Status: ' + (d.status||'online');
+  }
+
+  async function loadAuth() {
+    try {
+      const d = await api('/api/admin/auth-settings');
+      qid('au_gid').value = d.google_client_id || '';
+      qid('au_gsec').value = '';
+      qid('au_ttok').value = '';
+      qid('au_tun').value = d.telegram_bot_username || '';
+      if (qid('au_site')) qid('au_site').value = d.site_url || d.base_url || '';
+      if (qid('au_gen')) qid('au_gen').checked = (d.google_enabled === '1' || d.google_enabled === 1 || d.google_enabled === true);
+      if (qid('au_ten')) qid('au_ten').checked = (d.telegram_enabled === '1' || d.telegram_enabled === 1 || d.telegram_enabled === true);
+      if (qid('au_signup')) qid('au_signup').checked = (d.social_allow_signup === '1');
+      const g = d.google_ready || d.google_configured ? 'ON' : 'off';
+      const t = d.telegram_ready || d.telegram_configured ? 'ON' : 'off';
+      qid('authStatus').textContent = 'Google: ' + g + (d.google_client_secret_set ? ' (secret saved)' : '') + ' · Telegram: ' + t + (d.telegram_bot_token_set ? ' (token saved)' : '');
+      if (qid('authHints')) {
+        qid('authHints').innerHTML = 'Google redirect URI: <code>' + esc(d.google_redirect_uri||'') + '</code><br>Telegram domain: <code>' + esc(d.telegram_domain||'') + '</code>';
+      }
+    } catch(e) { qid('authStatus').textContent = e.message; }
+  }
+  async function saveAuth() {
+    try {
+      await postForm('/api/admin/auth-settings', {
+        google_enabled: (qid('au_gen') && qid('au_gen').checked) ? '1' : '0',
+        telegram_enabled: (qid('au_ten') && qid('au_ten').checked) ? '1' : '0',
+        social_allow_signup: (qid('au_signup') && qid('au_signup').checked) ? '1' : '0',
+        site_url: qid('au_site') ? qid('au_site').value : '',
+        google_client_id: qid('au_gid').value,
+        google_client_secret: qid('au_gsec').value,
+        telegram_bot_token: qid('au_ttok').value,
+        telegram_bot_username: qid('au_tun').value,
+      });
+      toast('Saved — secrets kept if left blank');
+      loadAuth();
+    } catch(e) { toast(e.message,'err'); }
+  }
+  async function testTg() {
+    try {
+      const d = await postForm('/api/admin/auth-settings/test-telegram', { telegram_bot_token: qid('au_ttok').value });
+      toast(d.message || 'OK');
+    } catch(e) { toast(e.message,'err'); }
+  }
+  async function clearProv(p) {
+    if (!confirm('Clear ' + p + '?')) return;
+    await api('/api/admin/auth-settings/clear/' + p, { method: 'POST' }); toast('Removed'); loadAuth();
+  }
+  async function loadPay() {
+    try {
+      const d = await api('/api/admin/payment-settings');
+      qid('pay_mid').value = d.merchant_id || d.pay_aba_merchant_id || '';
+      qid('pay_url').value = d.base_url || d.pay_aba_base_url || '';
+    } catch(e) {}
+  }
+  function payForm() {
+    return { pay_aba_api_key: qid('pay_key').value, pay_aba_merchant_id: qid('pay_mid').value, pay_aba_base_url: qid('pay_url').value };
+  }
+  async function savePay() {
+    try { await postForm('/api/admin/payment-settings', payForm()); qid('pay_key').value = ''; toast('Saved'); loadPay(); }
+    catch(e) { toast(e.message,'err'); }
+  }
+  async function testPay() {
+    const f = payForm();
+    try { const d = await postForm('/api/admin/payment/test', f); toast(d.message); }
+    catch(e) { toast(e.message,'err'); }
+  }
+  async function loadPayTx() {
+    let d;
+    try { d = await api('/api/admin/payment/transactions?status=' + encodeURIComponent(qid('ptStatus').value)); }
+    catch (e) { toast(e.message, 'err'); return; }
+    qid('ptLocal').innerHTML = d.local.length ? d.local.map(o =>
+      '<tr><td>#' + esc(o.order_id) + '</td><td>' + esc(o.email) + '</td><td>$' + Number(o.amount).toFixed(2) + '</td><td>' + esc(o.status) +
+      '</td><td>' + esc(o.payment_id || '') + '</td><td>' + esc((o.created_at || '').replace('T', ' ').slice(0, 16)) + '</td><td>' +
+      (o.payment_id && o.status !== 'paid' ? '<button class="btn btn-ghost btn-sm" onclick="recheckPay(' + o.order_id + ')">Check now</button>' : '') + '</td></tr>'
+    ).join('') : '<tr><td colspan="7" class="muted">No ABA orders yet</td></tr>';
+    const er = qid('ptErr'); er.classList.toggle('hidden', !d.remote_error); er.textContent = d.remote_error || '';
+    qid('ptRemote').innerHTML = d.remote.length ? d.remote.map(t =>
+      '<tr><td>' + esc(t.payment_id) + '</td><td>' + esc(t.username) + '</td><td>$' + Number(t.amount).toFixed(2) + '</td><td>' + esc(t.status) + '</td><td>' + (t.credited ? 'yes' : 'no') + '</td></tr>'
+    ).join('') : '<tr><td colspan="5" class="muted">No transactions</td></tr>';
+  }
+  async function recheckPay(id) {
+    try { const r = await api('/api/admin/payment/orders/' + id + '/check', { method: 'POST' }); toast('Status: ' + r.status); loadPayTx(); }
+    catch (e) { toast(e.message, 'err'); }
+  }
+
+    qid('couponForm').onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/admin/coupons', { method: 'POST', body: new FormData(e.target) }); e.target.reset(); toast('Created'); loadCoupons(); }
+    catch (err) { toast(err.message, 'err'); }
+  };
+  async function broadcast() {
+    const target = (qid('bcTarget') && qid('bcTarget').value) || 'all';
+    const title = qid('bt').value;
+    const body = qid('bb').value;
+    if (!title || !body) { toast('Title and body required', 'err'); return; }
+    try {
+      if (target === 'all') {
+        await postForm('/api/admin/broadcast', { title, body });
+      } else {
+        await postForm('/api/admin/broadcast/targeted', {
+          title, body, target,
+          user_ids: (qid('bcUserIds') && qid('bcUserIds').value) || ''
+        });
+      }
+      toast('Sent');
+    } catch(e) { toast(e.message, 'err'); }
+  }
+
+  async function loadSettings() {
+    try {
+      const d = await api('/api/admin/settings');
+      const map = { site_name:'set_site_name', currency:'set_currency', telegram_contact:'set_tg', support_contact:'set_support', timezone:'set_tz', maintenance_mode:'set_maint', maintenance_message:'set_maint_msg', registration_enabled:'set_reg', auto_start_default:'set_autostart' };
+      Object.entries(map).forEach(([k, id]) => { if (d[k] != null && qid(id)) qid(id).value = d[k]; });
+    } catch(e) {}
+  }
+  async function saveSettings() {
+    const fd = new FormData();
+    ['site_name','currency','telegram_contact','support_contact','timezone','maintenance_mode','maintenance_message','registration_enabled','auto_start_default'].forEach(k => {
+      const el = document.querySelector('[name="'+k+'"]');
+      if (el) fd.append(k, el.value);
+    });
+    try { await api('/api/admin/settings', { method:'POST', body: fd }); toast('Settings saved'); }
+    catch(e) { toast(e.message,'err'); }
+  }
+
+  /* ── New admin actions ── */
+  async function verifyDomain(id) {
+    try { await api('/api/admin/domains/'+id+'/verify',{method:'POST'}); toast('Verified'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function setSsl(id, st) {
+    try { await postForm('/api/admin/domains/'+id+'/ssl', { ssl_status: st }); toast('SSL updated'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function removeDomain(id) {
+    if(!confirm('Remove domain #'+id+'?')) return;
+    try { await api('/api/admin/domains/'+id+'/remove',{method:'POST'}); toast('Removed'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function viewDepLog(id) {
+    qid('logTitle').textContent = 'Deployment #'+id;
+    qid('logBody').textContent = 'Loading…';
+    qid('logModal').classList.remove('hidden');
+    try {
+      const d = await api('/api/admin/deployments/'+id);
+      qid('logBody').textContent = d.log || '(empty log)\nStatus: '+d.status+'\nRepo: '+d.repo_url;
+    } catch(e){ qid('logBody').textContent = e.message; }
+  }
+  async function cancelDep(id) {
+    if(!confirm('Cancel deployment #'+id+'?')) return;
+    try { await api('/api/admin/deployments/'+id+'/cancel',{method:'POST'}); toast('Cancelled'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function retryDep(id) {
+    try { const r = await api('/api/admin/deployments/'+id+'/retry',{method:'POST'}); toast('Retry created #'+(r.id||'')); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function createBackup() {
+    const pid = qid('bakProjId').value;
+    if(!pid){ toast('Enter project ID','err'); return; }
+    try { const r = await postForm('/api/admin/backups/create', { project_id: pid }); toast('Backup #'+r.id+' created'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function restoreBackup(id) {
+    if(!confirm('Restore backup #'+id+'? Hosting will be stopped first.')) return;
+    try { await api('/api/admin/backups/'+id+'/restore',{method:'POST'}); toast('Restored'); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function deleteBackup(id) {
+    if(!confirm('Delete backup #'+id+'?')) return;
+    try { await api('/api/admin/backups/'+id+'/delete',{method:'POST'}); toast('Deleted'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function refundOrder(id) {
+    if(!confirm('Refund order #'+id+'?')) return;
+    try { await api('/api/admin/orders/'+id+'/refund',{method:'POST'}); toast('Refunded'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function cancelOrder(id) {
+    if(!confirm('Cancel order #'+id+'?')) return;
+    try { await api('/api/admin/orders/'+id+'/cancel',{method:'POST'}); toast('Cancelled'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function deletePlan(id) {
+    if(!confirm('Delete/disable plan #'+id+'?')) return;
+    try { const r = await api('/api/admin/plans/'+id+'/delete',{method:'POST'}); toast(r.message||'Done'); location.reload(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function setPriority(id, pr) {
+    try { await postForm('/api/admin/tickets/'+id+'/priority', { priority: pr }); toast('Priority set'); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function viewHostLogs(id) {
+    qid('logTitle').textContent = 'Hosting #'+id+' logs';
+    qid('logBody').textContent = 'Loading…';
+    qid('logModal').classList.remove('hidden');
+    try {
+      const d = await api('/api/admin/projects/'+id+'/logs?lines=300');
+      qid('logBody').textContent = d.log || '(empty)';
+    } catch(e){ qid('logBody').textContent = e.message; }
+  }
+  async function loadProcs() {
+    try {
+      const d = await api('/api/admin/processes');
+      let h = '<h4>Top processes</h4><table class="table"><thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>MEM%</th><th>Status</th></tr></thead><tbody>';
+      h += (d.top||[]).map(p => '<tr><td>'+p.pid+'</td><td>'+esc(p.name)+'</td><td>'+p.cpu+'</td><td>'+p.mem+'</td><td>'+esc(p.status)+'</td></tr>').join('');
+      h += '</tbody></table><h4>Managed hostings</h4><ul>';
+      h += (d.managed||[]).map(m => '<li>Project #'+m.project_id+' — '+(m.running?'running':'stopped')+' pid='+(m.pid||'—')+'</li>').join('') || '<li class="muted">None</li>';
+      h += '</ul>';
+      const box = qid('procBox'); box.innerHTML = h; box.classList.remove('hidden');
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function loadServerLog() {
+    try {
+      const d = await api('/api/admin/server-logs?lines=150');
+      const box = qid('serverLogBox'); box.textContent = d.log; box.classList.remove('hidden');
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function loadBlocked() {
+    try {
+      const d = await api('/api/admin/blocked-ips');
+      qid('blockedRows').innerHTML = (d.items||[]).length ? d.items.map(r =>
+        '<tr><td>'+r.id+'</td><td>'+esc(r.ip)+'</td><td>'+esc(r.reason||'')+'</td><td>'+(r.created_by||'—')+'</td><td>'+esc((r.created_at||'').replace('T',' ').slice(0,16))+'</td><td><button class="btn btn-ghost btn-sm" onclick="unblockIp('+r.id+')">Unblock</button></td></tr>'
+      ).join('') : '<tr><td colspan="6" class="muted">No blocked IPs</td></tr>';
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function blockIp() {
+    const ip = qid('blockIp').value.trim();
+    if(!ip){ toast('Enter IP','err'); return; }
+    try { await postForm('/api/admin/blocked-ips', { ip, reason: qid('blockReason').value }); toast('Blocked'); loadBlocked(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function unblockIp(id) {
+    if(!confirm('Unblock?')) return;
+    try { await api('/api/admin/blocked-ips/'+id+'/unblock',{method:'POST'}); toast('Unblocked'); loadBlocked(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  // enhance coupon list with toggle/delete
+  async function loadCoupons() {
+    try {
+      const list = await api('/api/admin/coupons');
+      const rows = list.items || [];
+      qid('couponList').innerHTML = rows.length ? rows.map(c =>
+        '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.3rem 0">' +
+        '<span>' + esc(c.code) + ' — ' + esc(c.discount_value) + (c.discount_type === 'percent' ? '%' : ' USD') +
+        ' · used ' + esc(c.used_count) + '/' + (c.max_uses || '∞') +
+        (c.is_active === false ? ' · <span class="badge badge-muted">off</span>' : ' · <span class="badge badge-ok">on</span>') + '</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="toggleCoupon('+c.id+')">Toggle</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteCoupon('+c.id+')">Delete</button></div>'
+      ).join('') : 'No coupons';
+    } catch(e) { qid('couponList').textContent = e.message; }
+  }
+  async function toggleCoupon(id) {
+    try { await api('/api/admin/coupons/'+id+'/toggle',{method:'POST'}); loadCoupons(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function deleteCoupon(id) {
+    if(!confirm('Delete coupon?')) return;
+    try { await api('/api/admin/coupons/'+id+'/delete',{method:'POST'}); loadCoupons(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+
+
+  /* Sessions */
+  async function loadSessions() {
+    try {
+      const d = await api('/api/admin/sessions');
+      qid('sessionRows').innerHTML = (d.items||[]).length ? d.items.map(s =>
+        '<tr><td>'+s.id+'</td><td>'+esc(s.email)+' (#'+s.user_id+')</td><td>'+esc(s.role)+'</td><td>'+esc(s.ip||'')+'</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:.75rem">'+esc(s.user_agent||'')+'</td><td>'+esc((s.created_at||'').replace('T',' ').slice(0,16))+'</td><td><button class="btn btn-danger btn-sm" onclick="revokeSession('+s.id+')">Logout</button></td></tr>'
+      ).join('') : '<tr><td colspan="7" class="muted">No active sessions</td></tr>';
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function revokeSession(id) {
+    if(!confirm('Force logout this session?')) return;
+    try { await api('/api/admin/sessions/'+id+'/revoke',{method:'POST'}); toast('Revoked'); loadSessions(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+
+  /* Integrations */
+  async function loadIntegrations() {
+    try {
+      const d = await api('/api/admin/integrations');
+      const s = d.settings || {};
+      qid('int_gh_token').value = s.github_token || '';
+      qid('int_gh_cid').value = s.github_client_id || '';
+      qid('int_gh_sec').value = s.github_client_secret || '';
+      qid('int_cf_token').value = s.cloudflare_api_token || '';
+      qid('int_cf_zone').value = s.cloudflare_zone_id || '';
+      qid('int_cf_acct').value = s.cloudflare_account_id || '';
+      qid('int_tg_chat').value = s.telegram_notify_chat_id || '';
+      qid('int_wh_sec').value = s.webhook_signing_secret || '';
+      qid('int_ab_en').value = s.auto_backup_enabled || 'off';
+      qid('int_ab_hour').value = s.auto_backup_hour || '3';
+      qid('intStatus').textContent = 'Loaded. Masked fields keep old value if not changed.';
+      window._whCache = d.webhooks || [];
+    } catch(e){ qid('intStatus').textContent = e.message; }
+  }
+  async function saveIntegrations() {
+    const fd = new FormData();
+    const map = {
+      github_token:'int_gh_token', github_client_id:'int_gh_cid', github_client_secret:'int_gh_sec',
+      cloudflare_api_token:'int_cf_token', cloudflare_zone_id:'int_cf_zone', cloudflare_account_id:'int_cf_acct',
+      telegram_notify_chat_id:'int_tg_chat', webhook_signing_secret:'int_wh_sec',
+      auto_backup_enabled:'int_ab_en', auto_backup_hour:'int_ab_hour'
+    };
+    Object.entries(map).forEach(([k,id]) => { const el=qid(id); if(el && el.value) fd.append(k, el.value); });
+    try { await api('/api/admin/integrations',{method:'POST', body:fd}); toast('Saved'); loadIntegrations(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function runBackupAll() {
+    if(!confirm('Backup ALL hostings now? This may take a while.')) return;
+    try { const r = await api('/api/admin/backups/run-all',{method:'POST'}); toast('Created '+r.created+' backups'); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function loadWebhooks() {
+    try {
+      const d = await api('/api/admin/integrations');
+      const rows = d.webhooks || [];
+      qid('whList').innerHTML = rows.length ? rows.map(h =>
+        '<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.35rem 0">' +
+        '<b>'+esc(h.name)+'</b> <span class="muted">'+esc(h.url)+'</span> ' +
+        (h.is_active?'<span class="badge badge-ok">on</span>':'<span class="badge badge-muted">off</span>') +
+        ' <code style="font-size:.75rem">'+esc(h.events||'')+'</code>' +
+        ' <button class="btn btn-ghost btn-sm" onclick="toggleWh('+h.id+')">Toggle</button>' +
+        ' <button class="btn btn-ghost btn-sm" onclick="testWh('+h.id+')">Test</button>' +
+        ' <button class="btn btn-danger btn-sm" onclick="delWh('+h.id+')">Delete</button></div>'
+      ).join('') : '<p class="muted">No webhooks</p>';
+    } catch(e){ qid('whList').textContent = e.message; }
+  }
+  async function addWebhook() {
+    try {
+      await postForm('/api/admin/webhooks', {
+        name: qid('wh_name').value, url: qid('wh_url').value,
+        events: qid('wh_events').value, secret: qid('wh_secret').value
+      });
+      toast('Created'); loadWebhooks();
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function toggleWh(id){ try{ await api('/api/admin/webhooks/'+id+'/toggle',{method:'POST'}); loadWebhooks(); }catch(e){toast(e.message,'err');} }
+  async function delWh(id){ if(!confirm('Delete webhook?'))return; try{ await api('/api/admin/webhooks/'+id+'/delete',{method:'POST'}); loadWebhooks(); }catch(e){toast(e.message,'err');} }
+  async function testWh(id){ try{ const r=await api('/api/admin/webhooks/'+id+'/test',{method:'POST'}); toast('HTTP '+r.status_code); }catch(e){toast(e.message,'err');} }
+
+  /* Admin File Manager — uses existing project file APIs */
+  let fmPid = null, fmCur = '';
+  async function fmList() {
+    fmPid = qid('fmProjectId').value;
+    fmCur = qid('fmPath').value || '';
+    if(!fmPid){ toast('Enter project ID','err'); return; }
+    try {
+      const d = await api('/api/projects/'+fmPid+'/files?path='+encodeURIComponent(fmCur));
+      const items = d.items || d.files || d.entries || [];
+      qid('fmBreadcrumb').textContent = 'Project #'+fmPid+' / '+(fmCur || '.');
+      if (!items.length && !Array.isArray(items)) {
+        // try alternate shapes
+      }
+      const list = Array.isArray(items) ? items : (d.list || []);
+      qid('fmRows').innerHTML = list.length ? list.map(f => {
+        const name = f.name || f.filename || '';
+        const isDir = f.is_dir || f.type === 'dir' || f.type === 'directory';
+        const size = f.size != null ? f.size : (f.size_bytes || '');
+        const safe = encodeURIComponent(name);
+        const pathQ = encodeURIComponent((fmCur ? fmCur + '/' : '') + name);
+        let actions = '';
+        if (isDir) {
+          actions = '<button type="button" class="btn btn-ghost btn-sm" data-fm="enter" data-name="'+safe+'">Open</button>';
+        } else {
+          actions = '<button type="button" class="btn btn-ghost btn-sm" data-fm="edit" data-name="'+safe+'">Edit</button> '
+            + '<a class="btn btn-ghost btn-sm" href="/api/projects/'+fmPid+'/files/download?path='+pathQ+'">DL</a>';
+        }
+        actions += ' <button type="button" class="btn btn-danger btn-sm" data-fm="del" data-name="'+safe+'">Del</button>';
+        return '<tr><td>'+(isDir?'📁 ':'📄 ')+esc(name)+'</td><td>'+(isDir?'folder':'file')+'</td><td>'+esc(size)+'</td><td>'+actions+'</td></tr>';
+      }).join('') : '<tr><td colspan="4" class="muted">Empty</td></tr>';
+      // bind file-manager row actions (avoids broken onclick quotes)
+      qid('fmRows').querySelectorAll('[data-fm]').forEach(btn => {
+        btn.onclick = () => {
+          const n = decodeURIComponent(btn.getAttribute('data-name') || '');
+          const a = btn.getAttribute('data-fm');
+          if (a === 'enter') fmEnter(n);
+          else if (a === 'edit') fmEdit(n);
+          else if (a === 'del') fmDel(n);
+        };
+      });
+    } catch(e){ toast(e.message,'err'); qid('fmRows').innerHTML = '<tr><td colspan="4" class="muted">'+esc(e.message)+'</td></tr>'; }
+  }
+  function fmEnter(name) {
+    fmCur = fmCur ? (fmCur + '/' + name) : name;
+    qid('fmPath').value = fmCur;
+    fmList();
+  }
+  async function fmDel(name) {
+    if(!confirm('Delete '+name+'?')) return;
+    const path = fmCur ? (fmCur + '/' + name) : name;
+    try {
+      await postForm('/api/projects/'+fmPid+'/files/delete', { paths: JSON.stringify([path]), mode: 'permanent' });
+      fmList();
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function fmMkdir() {
+    const name = prompt('Folder name');
+    if(!name) return;
+    try { await postForm('/api/projects/'+fmPid+'/files/mkdir', { path: fmCur || '', name }); fmList(); }
+    catch(e){
+      try { await postForm('/api/projects/'+fmPid+'/files/mkdir', { path: (fmCur?fmCur+'/':'')+name }); fmList(); }
+      catch(e2){ toast(e2.message||e.message,'err'); }
+    }
+  }
+  async function fmNewFile() {
+    const name = prompt('File name');
+    if(!name) return;
+    try {
+      await postForm('/api/projects/'+fmPid+'/files/write', { path: (fmCur?fmCur+'/':'')+name, content: '' });
+      fmList();
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function fmEdit(name) {
+    const path = (fmCur?fmCur+'/':'')+name;
+    try {
+      // try download as text via files list content endpoint or write read
+      const r = await fetch('/api/projects/'+fmPid+'/files/download?path='+encodeURIComponent(path), {credentials:'same-origin'});
+      const text = await r.text();
+      if(!r.ok) throw new Error(text.slice(0,200));
+      qid('fmEditName').textContent = path;
+      qid('fmEditContent').value = text;
+      qid('fmEditContent').dataset.path = path;
+      qid('fmEditor').classList.remove('hidden');
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function fmSaveEdit() {
+    const path = qid('fmEditContent').dataset.path;
+    try {
+      await postForm('/api/projects/'+fmPid+'/files/write', { path, content: qid('fmEditContent').value });
+      toast('Saved');
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function fmDoUpload() {
+    const f = qid('fmUpload').files[0];
+    if(!f || !fmPid) return;
+    const fd = new FormData();
+    fd.append('file', f);
+    if (fmCur) fd.append('path', fmCur);
+    try {
+      await api('/api/projects/'+fmPid+'/files/upload', { method:'POST', body: fd });
+      toast('Uploaded'); fmList();
+    } catch(e){ toast(e.message,'err'); }
+  }
+
+</script>
+{% endblock %}

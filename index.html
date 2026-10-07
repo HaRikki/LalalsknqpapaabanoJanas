@@ -1,0 +1,34 @@
+{% extends "base_public.html" %}
+{% block title %}Anajak Host — Cloud hosting{% endblock %}
+{% block content %}
+{% set start = '/create' if user else '/register' %}
+<div class="container">
+  <section class="hero">
+    <div class="eyebrow">Cloud hosting</div>
+    <h1>Deploy your project in seconds</h1>
+    <p class="muted">Bots, websites, APIs and custom apps — one control panel.</p>
+    <div class="hero-actions">
+      <a class="btn btn-gradient btn-lg" href="{{ start }}">Get Started</a>
+      <a class="btn btn-ghost btn-lg" href="{{ '/dashboard' if user else '/login' }}">My Services</a>
+    </div>
+  </section>
+
+  <div class="section-title"><div class="eyebrow">What you can host</div><h2>Everything in one place</h2></div>
+  <div class="grid grid-3 mb-3">
+    <a class="type-card" href="{{ start }}"><div class="ico">CLOUD</div><h3>Cloud Hosting</h3><p class="muted">Apps, APIs and custom backends.</p><div class="go">Get started →</div></a>
+    <a class="type-card" href="{{ start }}"><div class="ico">BOT</div><h3>Bot Hosting</h3><p class="muted">Telegram and Discord bots with live logs.</p><div class="go">Get started →</div></a>
+    <a class="type-card" href="{{ start }}"><div class="ico">WEB</div><h3>Website</h3><p class="muted">Deploy websites and web apps.</p><div class="go">Get started →</div></a>
+    <a class="type-card" href="{{ start }}"><div class="ico">API</div><h3>API / Backend</h3><p class="muted">Python, Node.js, Java, Bun.</p><div class="go">Get started →</div></a>
+    <a class="type-card" href="{{ start }}"><div class="ico">GAME</div><h3>Game Server</h3><p class="muted">Game templates with resource limits.</p><div class="go">Get started →</div></a>
+    <a class="type-card" href="{{ start }}"><div class="ico">LOG</div><h3>Live Console</h3><p class="muted">Logs, files and env vars in the browser.</p><div class="go">Get started →</div></a>
+  </div>
+
+  <div class="section-title"><div class="eyebrow">How it works</div><h2>Start in 3 steps</h2></div>
+  <div class="grid grid-3 how">
+    <div class="card"><h3>Create account</h3><p class="muted">Register with your email in a few seconds.</p></div>
+    <div class="card"><h3>Choose a plan</h3><p class="muted">Pick hosting type, RAM, CPU and storage.</p></div>
+    <div class="card"><h3>Deploy &amp; manage</h3><p class="muted">Upload files, set env vars, then press Start.</p></div>
+  </div>
+  <div class="cta"><a class="btn btn-gradient btn-lg" href="{{ start }}">Order your first service</a></div>
+</div>
+{% endblock %}

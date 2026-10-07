@@ -1,0 +1,46 @@
+{% extends "base_app.html" %}
+{% set active = 'support' %}
+{% block title %}Support{% endblock %}
+{% block heading %}Support{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Support</h1><p class="muted">Open a ticket if you need help</p></div>
+</div>
+
+<div class="grid grid-2" style="align-items:start">
+  <div class="card" id="new">
+    <h3 class="mb-2">New ticket</h3>
+    <div id="err" class="alert alert-error hidden"></div>
+    <form id="form">
+      <label>Subject</label>
+      <input name="subject" required placeholder="Short subject" />
+      <label>Message</label>
+      <textarea name="message" rows="5" required placeholder="Describe your issue"></textarea>
+      <button class="btn btn-gradient" type="submit">Submit ticket</button>
+    </form>
+  </div>
+
+  <div>
+    <div class="section-head" style="margin-top:0"><h3>Your tickets</h3></div>
+    {% for t in tickets %}
+    <a href="/support/{{ t.id }}" class="list-item">
+      <div><strong>{{ t.subject }}</strong><p class="muted text-sm">#{{ t.id }} · {{ t.created_at }}</p></div>
+      <span class="badge badge-info">{{ t.status }}</span>
+    </a>
+    {% else %}
+    <div class="card empty">No tickets yet</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const d = await api('/api/support/tickets', { method: 'POST', body: new FormData(e.target) });
+      location.href = '/support/' + (d.id || '');
+    } catch (err) { showErr(document.getElementById('err'), err.message); }
+  };
+</script>
+{% endblock %}

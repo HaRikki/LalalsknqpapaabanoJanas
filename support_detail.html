@@ -1,0 +1,43 @@
+{% extends "base_app.html" %}
+{% set active = 'support' %}
+{% block title %}Ticket #{{ ticket.id }}{% endblock %}
+{% block heading %}Ticket #{{ ticket.id }}{% endblock %}
+{% block content %}
+<a class="back-link" href="/support">← All tickets</a>
+<div class="page-header">
+  <div><h1>{{ ticket.subject }}</h1></div>
+  <span class="badge {% if ticket.status == 'closed' %}badge-warn{% else %}badge-ok{% endif %}">{{ ticket.status }}</span>
+</div>
+
+<div class="card mb-2">
+  {% for m in ticket.messages %}
+  <div class="msg {% if m.is_admin %}staff{% endif %}">
+    <div class="msg-head"><strong>{% if m.is_admin %}Staff{% else %}You{% endif %}</strong><span class="muted">{{ m.created_at }}</span></div>
+    <p>{{ m.message }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+{% if ticket.status != 'closed' %}
+<div class="card">
+  <label>Reply</label>
+  <textarea id="reply" rows="4" placeholder="Write your reply..."></textarea>
+  <div class="actions">
+    <button class="btn btn-gradient" onclick="reply()">Send</button>
+    <button class="btn btn-ghost" onclick="closeT()">Close ticket</button>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  async function reply() {
+    await postForm('/api/support/{{ ticket.id }}/reply', { message: document.getElementById('reply').value });
+    location.reload();
+  }
+  async function closeT() {
+    await api('/api/support/{{ ticket.id }}/close', { method: 'POST' });
+    location.reload();
+  }
+</script>
+{% endblock %}

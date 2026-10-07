@@ -1,0 +1,157 @@
+{% extends "base_app.html" %}
+{% set active = 'create' %}
+{% block title %}Order{% endblock %}
+{% block heading %}Order new service{% endblock %}
+{% block content %}
+<div class="steps">
+  <div class="s active" data-s="1"><b>1</b><span>Hosting type</span></div>
+  <div class="s" data-s="2"><b>2</b><span>Plan</span></div>
+  <div class="s" data-s="3"><b>3</b><span>Configure</span></div>
+</div>
+<div id="err" class="alert alert-error hidden"></div>
+
+<section id="step1">
+  <div class="page-header"><div><h1>Choose your hosting type</h1><p class="muted">Bot, website, API, game or cloud hosting.</p></div></div>
+  <div class="grid grid-3">
+    <div class="type-card" onclick="pickType('telegram_bot')"><div class="ico">TG</div><h3>Telegram Bot</h3><p class="muted">Host Telegram bots with logs and env vars.</p><div class="go">Select →</div></div>
+    <div class="type-card" onclick="pickType('discord_bot')"><div class="ico">DC</div><h3>Discord Bot</h3><p class="muted">Run Discord bots on isolated processes.</p><div class="go">Select →</div></div>
+    <div class="type-card" onclick="pickType('website')"><div class="ico">WEB</div><h3>Website</h3><p class="muted">Deploy websites and web apps.</p><div class="go">Select →</div></div>
+    <div class="type-card" onclick="pickType('api')"><div class="ico">API</div><h3>API / Backend</h3><p class="muted">Python, Node.js and custom backends.</p><div class="go">Select →</div></div>
+    <div class="type-card" onclick="pickType('game')"><div class="ico">GAME</div><h3>Game Server</h3><p class="muted">Game templates with resource limits.</p><div class="go">Select →</div></div>
+    <div class="type-card" onclick="pickType('custom')"><div class="ico">CLOUD</div><h3>Cloud Hosting</h3><p class="muted">Apps, APIs, bots, and any custom stack.</p><div class="go">Select →</div></div>
+  </div>
+</section>
+
+<section id="step2" class="hidden">
+  <div class="page-header"><div><h1>Select your plan</h1><p class="muted">Compare price, RAM, CPU and storage.</p></div></div>
+  <a class="back-link" href="#" onclick="go(1);return false">← All hosting types</a>
+  <div class="grid grid-3">
+    {% for plan in plans %}
+    <div class="plan-card" style="margin:0" data-id="{{ plan.id }}" data-price="{{ plan.price_monthly }}" data-name="{{ plan.name }}" onclick="pickPlan(this)">
+      <div class="name">{{ plan.name }}</div>
+      <div class="price">{% if plan.price_monthly and plan.price_monthly > 0 %}${{ '%.2f'|format(plan.price_monthly) }}{% else %}<span style="color:var(--green);font-weight:800">FREE</span> <small class="muted">(Admin only)</small>{% endif %}</div>
+      <div class="chips">
+        <span class="chip"><i>RAM</i> <b>{% if plan.ram_mb >= 1024 %}{{ '%.1f'|format(plan.ram_mb/1024) }} GB{% else %}{{ plan.ram_mb }} MB{% endif %}</b></span>
+        <span class="chip"><i>CPU</i> <b>{{ plan.cpu }} vCPU</b></span>
+        <span class="chip"><i>DISK</i> <b>{{ plan.storage_gb }} GB</b></span>
+      </div>
+    </div>
+    {% else %}
+    <p class="muted">No plans. Ask admin to add plans.</p>
+    {% endfor %}
+  </div>
+  <div class="order-bar">
+    <div class="order-box">
+      <div class="ol">Your order</div>
+      <p class="muted" id="sum2">Select a plan to continue</p>
+      <div class="total"><span>Total</span> <span id="price2">—</span></div>
+      <button class="btn btn-gradient btn-block btn-lg" id="btn2" disabled onclick="go(3)">Continue</button>
+    </div>
+  </div>
+</section>
+
+<section id="step3" class="hidden">
+  <div class="page-header"><div><h1>Configure your order</h1><p class="muted">Choose billing cycle and server options.</p></div></div>
+  <a class="back-link" href="#" onclick="go(2);return false">← Back to plans</a>
+
+  <div class="section-head" style="margin-top:0"><h3>Billing cycle</h3></div>
+  <div class="grid grid-3">
+    <label class="sel-card selected" style="margin:0"><input type="radio" name="cycle" value="monthly" checked onchange="tot()" /><div class="n">Monthly</div><div class="p" id="pm">$0.00 USD</div><div class="s">per month</div></label>
+    <label class="sel-card" style="margin:0"><input type="radio" name="cycle" value="semi" onchange="tot()" /><div class="n">Semi-Annually</div><div class="p" id="ps">$0.00 USD</div><div class="s">per 6 months</div></label>
+    <label class="sel-card" style="margin:0"><input type="radio" name="cycle" value="annual" onchange="tot()" /><div class="n">Annually</div><div class="p" id="pa">$0.00 USD</div><div class="s">per year</div></label>
+  </div>
+
+  <div class="section-head"><h3>Server</h3></div>
+  <div class="form-grid">
+    <div><label>Server Name <span class="req">*</span></label><input id="name" placeholder="my-server" /></div>
+    <div><label>Start command (optional)</label><input id="cmd" placeholder="python main.py" /></div>
+  </div>
+
+  <label>Runtime <span class="req">*</span></label>
+  <div class="grid grid-4" style="gap:.55rem">
+    <label class="sel-card selected" style="margin:0"><input type="radio" name="rt" value="python" checked /> Python</label>
+    <label class="sel-card" style="margin:0"><input type="radio" name="rt" value="nodejs" /> Node.js</label>
+    <label class="sel-card" style="margin:0"><input type="radio" name="rt" value="java" /> Java</label>
+    <label class="sel-card" style="margin:0"><input type="radio" name="rt" value="bun" /> Bun</label>
+    <label class="sel-card" style="margin:0"><input type="radio" name="rt" value="custom" /> Custom</label>
+  </div>
+
+  <div class="order-bar">
+    <div class="order-box">
+      <div class="ol">Your order</div>
+      <p style="font-weight:700" id="sum3">—</p>
+      <p class="muted" id="cyc3">Monthly</p>
+      <div class="total"><span>Total</span> <span id="price3">$0.00 USD</span></div>
+      <button class="btn btn-gradient btn-block btn-lg" onclick="order()">Place order</button>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  let type = null, plan = null, price = 0;
+  function go(n) {
+    ['step1','step2','step3'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('step' + n).classList.remove('hidden');
+    document.querySelectorAll('.steps .s').forEach(s => {
+      const i = +s.dataset.s;
+      s.classList.toggle('active', i === n);
+      s.classList.toggle('done', i < n);
+    });
+    window.scrollTo(0,0);
+  }
+  function pickType(t) { type = t; go(2); }
+  function pickPlan(el) {
+    document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    plan = { id: el.dataset.id, name: el.dataset.name, price: parseFloat(el.dataset.price) };
+    price = plan.price;
+    document.getElementById('sum2').textContent = plan.name;
+    document.getElementById('price2').textContent = '$' + price.toFixed(2);
+    document.getElementById('btn2').disabled = false;
+    tot();
+  }
+  function tot() {
+    if (!plan) return;
+    const c = document.querySelector('input[name="cycle"]:checked')?.value || 'monthly';
+    let m = 1, lab = 'Monthly';
+    if (c === 'semi') { m = 6; lab = 'Semi-Annually'; }
+    if (c === 'annual') { m = 12; lab = 'Annually'; }
+    document.getElementById('pm').textContent = '$' + price.toFixed(2) + ' USD';
+    document.getElementById('ps').textContent = '$' + (price*6).toFixed(2) + ' USD';
+    document.getElementById('pa').textContent = '$' + (price*12).toFixed(2) + ' USD';
+    document.getElementById('sum3').textContent = plan.name;
+    document.getElementById('cyc3').textContent = lab;
+    document.getElementById('price3').textContent = '$' + (price*m).toFixed(2) + ' USD';
+  }
+  document.querySelectorAll('.sel-card').forEach(c => {
+    c.addEventListener('click', () => {
+      const name = c.querySelector('input')?.name;
+      if (!name) return;
+      document.querySelectorAll('input[name="'+name+'"]').forEach(i => i.closest('.sel-card').classList.remove('selected'));
+      c.classList.add('selected');
+    });
+  });
+  async function order() {
+    const name = document.getElementById('name').value.trim();
+    if (!name || !plan || !type) { showErr(document.getElementById('err'), 'Fill name, type and plan'); window.scrollTo(0,0); return; }
+    const rt = document.querySelector('input[name="rt"]:checked').value;
+    let cmd = document.getElementById('cmd').value.trim();
+    if (!cmd) {
+      if (rt === 'python') cmd = 'python main.py';
+      else if (rt === 'nodejs') cmd = 'node index.js';
+      else if (rt === 'bun') cmd = 'bun run index.js';
+    }
+    const fd = new FormData();
+    fd.append('name', name); fd.append('project_type', type);
+    fd.append('plan_id', plan.id); fd.append('start_command', cmd);
+    const cyc = document.querySelector('input[name="cycle"]:checked')?.value || 'monthly';
+    fd.append('months', cyc === 'semi' ? 6 : cyc === 'annual' ? 12 : 1);
+    try {
+      const d = await api('/api/projects/create', { method: 'POST', body: fd });
+      // unpaid invoice created (online payment on) -> go pay it first
+      if (d.order_id) { location.href = '/billing?pay=' + d.order_id; } else { location.href = '/project/' + d.id; }
+    } catch (e) { showErr(document.getElementById('err'), e.message); window.scrollTo(0,0); }
+  }
+</script>
+{% endblock %}

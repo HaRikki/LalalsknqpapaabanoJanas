@@ -1,0 +1,118 @@
+{% extends "base_app.html" %}
+{% set active = 'dashboard' %}
+{% block title %}Servers{% endblock %}
+{% block heading %}Servers{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Servers</h1><p class="muted">Manage your hosting services</p></div>
+  <a class="btn btn-gradient" href="/create">+ Order New Service</a>
+</div>
+
+{% if not projects %}
+<div class="panel-card empty">
+  <img class="logo-img" src="/static/img/logo.png" alt="" style="width:64px;height:64px;margin:0 auto 1rem" />
+  <h3>No services yet</h3>
+  <p class="muted mb-2">Order your first hosting to continue.</p>
+  <a class="btn btn-gradient" href="/create">Order New Service</a>
+</div>
+{% else %}
+{% set ns = namespace(run=0) %}{% for p in projects %}{% if info[p.id].status == 'running' %}{% set ns.run = ns.run + 1 %}{% endif %}{% endfor %}
+<div class="srv-tools">
+  <label class="search"><svg class="ic"><use href="#i-search"/></svg><input id="sq" placeholder="Search servers…" autocomplete="off" /></label>
+  <div class="chips" id="chips">
+    <button type="button" class="chip-btn on" data-f="all">All <b id="c-all">{{ projects|length }}</b></button>
+    <button type="button" class="chip-btn" data-f="running">Running <b id="c-running">{{ ns.run }}</b></button>
+    <button type="button" class="chip-btn" data-f="stopped">Offline <b id="c-stopped">{{ projects|length - ns.run }}</b></button>
+  </div>
+</div>
+
+<div class="srv-grid" id="srvGrid">
+  {% for p in projects %}{% set s = info[p.id] %}{% set h = host_map[p.id] %}
+  <article class="srv rt-{{ s.rtc }}" data-rt="{{ s.rt }}" data-id="{{ p.id }}" data-status="{{ s.status }}" data-name="{{ (p.name ~ ' ' ~ h.display_host)|lower }}"
+           data-cpulim="{{ (p.cpu * 100)|int }}" data-ramlim="{{ p.ram_mb }}" data-disklim="{{ p.storage_gb * 1024 }}">
+    <div class="srv-head">
+      <div style="min-width:0">
+        <h3>{{ p.name }}</h3>
+      </div>
+      <span class="tag tag-{{ s.tag }} js-tag"><span class="sdot"></span>{{ s.label }}</span>
+    </div>
+    <dl class="kv">
+      <div><dt>Hostname:</dt><dd>{{ h.display_host }}</dd></div>
+      <div><dt>Server IP:</dt><dd>{{ h.server_ip }}</dd></div>
+      <div><dt>CPU:</dt><dd><span class="js-cpu">{{ ('%.2f'|format(s.cpu)) if s.cpu is not none else '0.00' }}%</span> <small>/ {{ (p.cpu * 100)|int }}%</small></dd></div>
+      <div><dt>RAM:</dt><dd><span class="js-ram">{{ (s.ram or 0)|mib }}</span> <small>/ {{ p.ram_mb|mib(true) }}</small></dd></div>
+      <div><dt>Disk:</dt><dd><span class="js-disk">{{ s.disk_mb|mib }}</span> <small>/ {{ (p.storage_gb * 1024)|mib(true) }}</small></dd></div>
+    </dl>
+    <div class="srv-actions">
+      <a class="btn-manage" href="/project/{{ p.id }}">Manage server</a>
+      <button type="button" class="qa go" data-act="start" title="Start" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button>
+      <button type="button" class="qa" data-act="restart" title="Restart" aria-label="Restart"><svg class="ic"><use href="#i-restart"/></svg></button>
+      <button type="button" class="qa halt" data-act="stop" title="Stop" aria-label="Stop"><svg class="ic"><use href="#i-stop"/></svg></button>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+<div class="panel-card empty hidden" id="srvNone">No servers match your search.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if projects %}
+<script>
+  const $ = id => document.getElementById(id);
+  const cards = [...document.querySelectorAll('.srv[data-id]')];
+  let filt = 'all';
+
+  function mib(v){ v = Number(v) || 0; let u = 'MiB'; if(v >= 1024){ v /= 1024; u = 'GiB'; } return v.toFixed(2) + ' ' + u; }
+
+  /* ---- search + filter ---- */
+  function applyFilter(){
+    const q = $('sq').value.trim().toLowerCase(); let shown = 0;
+    cards.forEach(c => {
+      const st = c.dataset.status === 'running' ? 'running' : 'stopped';
+      const ok = (filt === 'all' || filt === st) && (!q || c.dataset.name.includes(q));
+      c.classList.toggle('hidden', !ok); if(ok) shown++;
+    });
+    $('srvNone').classList.toggle('hidden', shown > 0);
+  }
+  $('sq').addEventListener('input', applyFilter);
+  document.querySelectorAll('#chips .chip-btn').forEach(b => b.onclick = () => {
+    filt = b.dataset.f; document.querySelectorAll('#chips .chip-btn').forEach(x => x.classList.toggle('on', x === b)); applyFilter();
+  });
+
+  /* ---- live stats ---- */
+  function paint(c, d){
+    c.dataset.status = d.status;
+    const t = c.querySelector('.js-tag'); t.className = 'tag tag-' + d.tag + ' js-tag';
+    t.innerHTML = '<span class="sdot"></span>'; t.appendChild(document.createTextNode(d.label));
+    c.querySelector('.js-cpu').textContent = Number(d.cpu || 0).toFixed(2) + '%';
+    c.querySelector('.js-ram').textContent = mib(d.ram);
+    c.querySelector('.js-disk').textContent = mib(d.disk_mb);
+  }
+  async function live(){
+    try {
+      const r = await api('/api/dashboard/live');
+      let run = 0;
+      cards.forEach(c => { const d = r.items[c.dataset.id]; if(d){ paint(c, d); if(d.status === 'running') run++; } });
+      $('c-running').textContent = run; $('c-stopped').textContent = cards.length - run; $('c-all').textContent = cards.length;
+      applyFilter();
+    } catch(e){}
+  }
+  setInterval(() => { if(!document.hidden) live(); }, 6000);
+
+  /* ---- quick power actions ---- */
+  document.querySelectorAll('.srv .qa').forEach(b => b.onclick = async () => {
+    const c = b.closest('.srv'), act = b.dataset.act;
+    if(act === 'stop' && !(await ui.confirm('Stop this server?', {ok: 'Stop', danger: true}))) return;
+    const all = c.querySelectorAll('.qa'); all.forEach(x => x.disabled = true);
+    try {
+      const r = await api('/api/projects/' + c.dataset.id + '/' + act, {method: 'POST'});
+      if(r && r.ok === false) toast(r.error || 'Failed', 'err');
+      else toast(act === 'start' ? 'Start sent' : act === 'stop' ? 'Stop sent' : 'Restart sent');
+      setTimeout(live, 900);
+    } catch(e){ toast(e.message, 'err'); }
+    all.forEach(x => x.disabled = false);
+  });
+</script>
+{% endif %}
+{% endblock %}

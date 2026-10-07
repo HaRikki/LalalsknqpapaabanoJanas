@@ -1,0 +1,559 @@
+/* Anajak Host — UI v3  (load LAST, after app.css / panel.css / panel-ui.css)
+   1) ជ្រុងមូល  2) ប៊ូតុងមានចលនា  3) ផ្ទៃខាងក្រោយរូបភាពព្រឹល (Server Panel) */
+
+:root{ --radius:24px; --radius-sm:16px; --pill:999px; --ease:cubic-bezier(.2,.8,.2,1); }
+
+/* ============================================================
+   1) ផ្ទៃខាងក្រោយរូបភាព — ព្រឹល មិនច្បាស់ (តែ body.app = Server Panel)
+   ប្តូរភាពព្រឹល  : --bg-blur   ប្តូរភាពងងឹត/ភ្លឺ : --bg-tint
+   ============================================================ */
+body.app{
+  --bg-blur:18px;
+  --bg-tint:linear-gradient(180deg,rgba(238,238,245,.78),rgba(238,238,245,.88));
+  --glass:rgba(244,244,249,.66);
+  --glass-bar:rgba(238,238,245,.60);
+  background-attachment:fixed;
+}
+html.pre-dark body.app,
+body.app.theme-dark{
+  --bg-tint:linear-gradient(180deg,rgba(7,11,17,.50),rgba(7,11,17,.76));
+  --glass:rgba(23,28,40,.58);
+  --glass-bar:rgba(15,18,25,.55);
+}
+body.app.theme-oled{ --bg-tint:rgba(0,0,0,.84); --glass:rgba(10,12,16,.62); --glass-bar:rgba(0,0,0,.55); }
+
+body.app::before{
+  content:""; position:fixed; inset:-60px; z-index:-2; pointer-events:none;
+  background:url("/static/img/bg-panel.jpg") center 30%/cover no-repeat;
+  filter:blur(var(--bg-blur)) saturate(1.25);
+  transform:scale(1.08);
+  animation:bgBreath 28s ease-in-out infinite alternate;
+}
+body.app::after{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:var(--bg-tint);
+}
+@keyframes bgBreath{ from{transform:scale(1.08) translate3d(0,0,0)} to{transform:scale(1.2) translate3d(-1.5%,1%,0)} }
+
+/* Card / Topbar / Drawer ឲ្យថ្លាបន្តិច ដើម្បីឃើញរូបភាពនៅខាងក្រោយ */
+:is(body.app,body.app.theme-dark) .panel-card,
+:is(body.app,body.app.theme-dark) .card,
+:is(body.app,body.app.theme-dark) .stat,
+:is(body.app,body.app.theme-dark) .type-card,
+:is(body.app,body.app.theme-dark) .plan-card{ background:var(--glass); }
+:is(body.app,body.app.theme-dark) .topbar{ background:var(--glass-bar); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+:is(body.app,body.app.theme-dark) .drawer{ background:var(--glass-bar); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+@media(max-width:899px){ :is(body.app,body.app.theme-dark) .drawer{ background:var(--glass-bar); } }
+
+/* ============================================================
+   2) ជ្រុងមូល
+   ============================================================ */
+:is(body,body.app) .panel-card,
+:is(body,body.app) .card,
+:is(body,body.app) .card-soft,
+:is(body,body.app) .stat,
+:is(body,body.app) .type-card,
+:is(body,body.app) .plan-card,
+:is(body,body.app) .srv,
+:is(body,body.app) .login-card{ border-radius:24px; }
+.login-card{ border-radius:28px; }
+
+:is(body,body.app) input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not(.toggle),
+:is(body,body.app) select{ border-radius:var(--pill); padding-left:1.1rem; padding-right:1.1rem; }
+:is(body,body.app) textarea{ border-radius:20px; }
+:is(body,body.app) .search{ border-radius:var(--pill); }
+:is(body,body.app) .tag,:is(body,body.app) .badge{ border-radius:var(--pill); }
+.modal{ border-radius:24px!important; }
+
+/* ============================================================
+   3) ប៊ូតុង — រាងមូល + ចលនា
+   ============================================================ */
+:is(body,body.app,body.app.theme-dark) :is(.btn,.btn-soft,.btn-green,.btn-red,.btn-manage,.btn-social,.chip-btn,.icon-btn,.pw){
+  position:relative; overflow:hidden; isolation:isolate;
+  border-radius:var(--pill)!important;
+  transition:transform .25s var(--ease),box-shadow .25s var(--ease),background .25s,border-color .25s,color .25s,filter .25s;
+  -webkit-tap-highlight-color:transparent;
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn,.btn-soft,.btn-green,.btn-red,.btn-manage,.chip-btn,.icon-btn,.pw):active{ transform:scale(.94)!important; }
+:is(body,body.app,body.app.theme-dark) .btn-sm,
+:is(body,body.app,body.app.theme-dark) .btn-xs{ border-radius:var(--pill)!important; }
+
+/* --- Primary: gradient ហូរ + glow ញាប់ + ពន្លឺរំកិល --- */
+:is(body,body.app,body.app.theme-dark) :is(.btn-primary,.btn-gradient,.btn-green){
+  color:var(--fi,#032a1b)!important;
+  background:linear-gradient(110deg,var(--fa,#34d399),var(--fb,#22d3ee),var(--fa,#34d399),var(--fb,#22d3ee))!important;
+  background-size:300% 100%!important;
+  border:0!important;
+  animation:uiFlow 6s linear infinite, uiPulse 2.8s ease-in-out infinite;
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn-primary,.btn-gradient,.btn-green)::after{
+  content:""; position:absolute; top:0; left:-80%; width:50%; height:100%; z-index:-1; pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.65),transparent);
+  transform:skewX(-20deg); transition:left .7s var(--ease);
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn-primary,.btn-gradient,.btn-green):hover{
+  color:var(--fi,#032a1b)!important; transform:translateY(-3px) scale(1.03); box-shadow:0 14px 34px -6px color-mix(in srgb,var(--fa,#34d399) 60%,transparent); filter:none;
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn-primary,.btn-gradient,.btn-green):hover::after{ left:140%; }
+@keyframes uiFlow{ to{background-position:300% 0} }
+@keyframes uiPulse{
+  0%,100%{ box-shadow:0 0 0 0 color-mix(in srgb,var(--fa,#34d399) 45%,transparent),0 8px 24px -8px color-mix(in srgb,var(--fa,#34d399) 50%,transparent) }
+  50%    { box-shadow:0 0 0 12px transparent,0 8px 24px -8px color-mix(in srgb,var(--fa,#34d399) 50%,transparent) }
+}
+
+/* --- Ghost / Soft / Manage: ពណ៌បាក់ឡើងពីខាងក្រោមពេល hover --- */
+:is(body,body.app,body.app.theme-dark) :is(.btn-ghost,.btn-soft,.btn-manage,.icon-btn){ backdrop-filter:blur(8px); }
+:is(body,body.app,body.app.theme-dark) :is(.btn-ghost,.btn-soft,.btn-manage)::before{
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:linear-gradient(110deg,rgba(52,211,153,.30),rgba(34,211,238,.30));
+  transform:translateY(100%); transition:transform .35s var(--ease);
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn-ghost,.btn-soft,.btn-manage,.icon-btn):hover{
+  transform:translateY(-3px); border-color:var(--border-g)!important; box-shadow:0 12px 26px -12px rgba(52,211,153,.55);
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn-ghost,.btn-soft,.btn-manage):hover::before{ transform:translateY(0); }
+
+/* --- Danger / Red --- */
+:is(body,body.app,body.app.theme-dark) :is(.btn-danger,.btn-red):hover{
+  background:#f87171!important; color:#2a0606!important; transform:translateY(-3px); box-shadow:0 12px 28px -8px rgba(248,113,113,.65);
+}
+
+/* --- Start / Restart / Stop (.pw) --- */
+:is(body,body.app,body.app.theme-dark) .pw:not(:disabled):hover{ transform:translateY(-3px) scale(1.04); filter:brightness(1.1); box-shadow:0 12px 26px -10px rgba(0,0,0,.5); }
+:is(body,body.app,body.app.theme-dark) .pw.restart:not(:disabled):hover .ic{ transform:rotate(180deg); }
+.pw .ic{ transition:transform .45s var(--ease); }
+
+/* --- ប៊ូតុងរង្វង់តូច .qa --- */
+:is(body,body.app,body.app.theme-dark) .qa{ border-radius:50%!important; transition:transform .25s var(--ease),background .25s,color .25s,box-shadow .25s; }
+:is(body,body.app,body.app.theme-dark) .qa:hover{ transform:translateY(-3px) scale(1.12); }
+:is(body,body.app,body.app.theme-dark) .qa.go:hover{ background:#34d399; color:#032a1b; box-shadow:0 8px 20px -4px rgba(52,211,153,.7); }
+:is(body,body.app,body.app.theme-dark) .qa.halt:hover{ background:#f87171; color:#2a0606; box-shadow:0 8px 20px -4px rgba(248,113,113,.7); }
+:is(body,body.app,body.app.theme-dark) .qa:active{ transform:scale(.88); }
+.qa .ic{ transition:transform .45s var(--ease); }
+.qa[data-act=restart]:hover .ic{ transform:rotate(180deg); }
+
+/* --- Chip filter --- */
+:is(body,body.app,body.app.theme-dark) .chip-btn:hover{ transform:translateY(-2px); border-color:var(--border-g); }
+:is(body,body.app,body.app.theme-dark) .chip-btn.on{ background:linear-gradient(110deg,#34d399,#22d3ee); color:#032a1b; border-color:transparent; }
+
+/* --- Ripple (JS: ui-fx.js) --- */
+.ui-ripple{ position:absolute; border-radius:50%; background:rgba(255,255,255,.55); transform:scale(0); animation:uiRip .6s ease-out forwards; pointer-events:none; z-index:-1; }
+@keyframes uiRip{ to{ transform:scale(4); opacity:0 } }
+
+/* --- Card លោតពេល hover + លេចចូលពេលបើកទំព័រ --- */
+:is(body,body.app) :is(.type-card,.plan-card,.stat){ transition:transform .35s var(--ease),border-color .35s,box-shadow .35s; }
+:is(body,body.app) :is(.type-card,.plan-card,.stat):hover{ transform:translateY(-6px); border-color:var(--border-g); box-shadow:0 22px 44px -22px rgba(52,211,153,.4); }
+.app .srv:hover{ transform:translateY(-6px); box-shadow:0 22px 44px -22px rgba(52,211,153,.45); border-color:var(--border-g); }
+.app .srv,.app .panel-card,.app .stat,.type-card{ animation:uiRise .55s var(--ease) backwards; }
+@keyframes uiRise{ from{ opacity:0; transform:translateY(16px) } }
+
+/* ស្ថានភាព Running ញាប់ */
+.tag-ok .sdot,.sdot.ok{ animation:uiPing 1.6s infinite; }
+@keyframes uiPing{ 0%{box-shadow:0 0 0 0 rgba(52,211,153,.7)} 100%{box-shadow:0 0 0 8px rgba(52,211,153,0)} }
+
+@media (prefers-reduced-motion:reduce){
+  body.app::before{ animation:none }
+  :is(body,body.app) *{ animation-duration:.001s!important; animation-iteration-count:1!important; transition-duration:.001s!important; }
+}
+
+
+/* ============================================================
+   4) ពណ៌តាមមុខងារ (Function colours)
+   កែពណ៌នៅទីនេះ  --fa = ពណ៌ចាប់ផ្តើម  --fb = ពណ៌បញ្ចប់  --fi = ពណ៌អក្សរលើផ្ទៃពេញ
+   បៃតង=Start/Save/Create · ខៀវ=Restart/Download · ក្រហម=Stop/Delete · លឿង=Edit/Close
+   ស្វាយ=Upload/Console · ទឹកប្រាក់=Pay · ស៊ីលោ=Verify/Refresh · Indigo=Archive/Move
+   ============================================================ */
+:root{
+  --c-start:#34d399; --c-start2:#10b981;
+  --c-restart:#38bdf8; --c-restart2:#60a5fa;
+  --c-stop:#fb7185; --c-stop2:#ef4444;
+  --c-del:#f87171;
+  --c-edit:#fbbf24; --c-edit2:#f59e0b;
+  --c-upload:#a78bfa; --c-upload2:#8b5cf6;
+  --c-down:#60a5fa; --c-down2:#3b82f6;
+  --c-arch:#818cf8; --c-arch2:#6366f1;
+  --c-new:#2dd4bf; --c-new2:#14b8a6;
+  --c-check:#22d3ee; --c-check2:#06b6d4;
+  --c-deploy:#818cf8; --c-deploy2:#22d3ee;
+  --c-pay:#fbbf24; --c-pay2:#f97316;
+  --c-warn:#fb923c; --c-warn2:#f97316;
+}
+/* --- ជ្រើសពណ៌ឲ្យប៊ូតុងតាមមុខងារ --- */
+.pw.start,.qa.go,.qa[data-act=start],[onclick^="activate("],[onclick^="confirmOrder"],[onclick^="readAll"]{--fa:var(--c-start);--fb:var(--c-start2);--fi:#032a1b}
+.pw.restart,.qa[data-act=restart],[onclick*="'restart'"],[data-rs]{--fa:var(--c-restart);--fb:var(--c-restart2);--fi:#04122e}
+.pw.stop,.qa.halt,.qa[data-act=stop],[onclick*="'stop'"]{--fa:var(--c-stop);--fb:var(--c-stop2);--fi:#2a0606}
+.btn-red,.btn-red-solid,.btn-danger,[onclick^="delP"],[onclick^="pDel"],[onclick^="rejectOrder"],[onclick^="delSelected"],[onclick^="openTrash"],[onclick^="clearProv"],[onclick^="unlinkP"],[data-del],[data-rm],[data-rmd]{--fa:var(--c-del);--fb:var(--c-stop2);--fi:#2a0606}
+[onclick^="forceStop"]{--fa:#dc2626;--fb:#991b1b;--fi:#fff}
+[onclick^="suspend("],[onclick^="closeT"]{--fa:var(--c-warn);--fb:var(--c-warn2);--fi:#2b1203}
+[data-edit]{--fa:var(--c-edit);--fb:var(--c-edit2);--fi:#2b1d00}
+[onclick*="getElementById('fi')"]{--fa:var(--c-upload);--fb:var(--c-upload2);--fi:#fff}
+[onclick^="broadcast"]{--fa:var(--c-upload);--fb:var(--c-upload2);--fi:#fff}
+[onclick^="downloadSelected"],[data-dl]{--fa:var(--c-down);--fb:var(--c-down2);--fi:#04122e}
+[onclick^="compressSelected"],[onclick^="unarchiveSelected"],[onclick^="moveSelected"]{--fa:var(--c-arch);--fb:var(--c-arch2);--fi:#0b0d33}
+[onclick^="mkdir"],[onclick^="newFile"]{--fa:var(--c-new);--fb:var(--c-new2);--fi:#032a26}
+[onclick^="backup"],[data-ver],[onclick^="testTg"],[onclick^="testPay"],[onclick^="recheckPay"],[onclick^="loadSys"],[onclick^="loadPayTx"]{--fa:var(--c-check);--fb:var(--c-check2);--fi:#032a2f}
+[onclick^="gitDeploy"]{--fa:var(--c-deploy);--fb:var(--c-deploy2);--fi:#0b0d33}
+[onclick^="payAba"]{--fa:var(--c-pay);--fb:var(--c-pay2);--fi:#2b1500}
+[onclick*="linkTelegram"]{--fa:#38bdf8;--fb:#229ed9;--fi:#04122e}
+.btn-soft[target=_blank]{--fa:var(--c-restart);--fb:var(--c-restart2);--fi:#04122e}
+
+/* --- ប៊ូតុង Soft / Ghost / Manage / Danger = ពណ៌ថ្លា តាមមុខងារ → ពេញពណ៌ពេលហូវើរ --- */
+:is(body,body.app,body.app.theme-dark) :is(.btn-soft:not(.btn-green),.btn-ghost,.btn-danger,.btn-red,.btn-red-solid){
+  --_c:var(--fa,#94a3b8);
+  background:color-mix(in srgb,var(--_c) 15%,transparent);
+  border:1px solid color-mix(in srgb,var(--_c) 40%,transparent)!important;
+  color:color-mix(in srgb,var(--_c) 68%,var(--text))!important;
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn-soft:not(.btn-green),.btn-ghost,.btn-danger,.btn-red,.btn-red-solid)::before{
+  background:linear-gradient(110deg,var(--_c),var(--fb,var(--_c)));
+}
+:is(body,body.app,body.app.theme-dark) :is(.btn-soft:not(.btn-green),.btn-ghost,.btn-danger,.btn-red,.btn-red-solid):hover{
+  background:color-mix(in srgb,var(--_c) 15%,transparent);
+  color:var(--fi,#06121a)!important; border-color:var(--_c)!important;
+  box-shadow:0 12px 26px -10px color-mix(in srgb,var(--_c) 70%,transparent);
+}
+/* Delete ទាំងបង្អស់ → ពេញក្រហមជានិច្ចសម្រាប់ btn-red-solid */
+:is(body,body.app,body.app.theme-dark) .btn-red-solid{ background:linear-gradient(110deg,var(--c-stop),var(--c-stop2))!important; color:#fff!important; border-color:transparent!important; }
+:is(body,body.app,body.app.theme-dark) .btn-red-solid::before{ background:#b91c1c; }
+
+/* --- Start / Restart / Stop ធំ (.pw) = ពណ៌ពេញ --- */
+:is(body,body.app,body.app.theme-dark) .pw{ border:0; color:var(--fi,#fff); background:linear-gradient(135deg,var(--fa,#94a3b8),var(--fb,#64748b)); }
+:is(body,body.app,body.app.theme-dark) .pw.stop{ color:#fff; }
+:is(body,body.app,body.app.theme-dark) .pw:disabled{ opacity:.4; filter:saturate(.5); }
+
+/* --- រង្វង់តូច (.qa) = Icon មានពណ៌ → ពេញពណ៌ពេលហូវើរ --- */
+:is(body,body.app,body.app.theme-dark) .qa{ color:var(--fa,var(--text)); border-color:color-mix(in srgb,var(--fa,#94a3b8) 40%,transparent); background:color-mix(in srgb,var(--fa,#94a3b8) 14%,transparent); }
+:is(body,body.app,body.app.theme-dark) .qa:hover{ background:linear-gradient(135deg,var(--fa,#94a3b8),var(--fb,#64748b)); color:var(--fi,#06121a); box-shadow:0 8px 20px -4px color-mix(in srgb,var(--fa,#94a3b8) 70%,transparent); }
+
+/* --- Floating Console + ប៊ូតុងក្នុង Console --- */
+.fab-console{ background:linear-gradient(135deg,var(--c-upload),var(--c-arch2))!important; color:#fff!important; border:0!important; box-shadow:0 10px 28px -8px rgba(139,92,246,.7); transition:transform .3s var(--ease),width .3s var(--ease); }
+.fab-console:hover{ transform:translateY(-50%) translateX(-6px); }
+.term-ic button{ transition:transform .25s var(--ease),color .25s,background .25s; border-radius:50%!important; }
+.term-ic button:hover{ transform:translateY(-2px) scale(1.12); }
+#pauseBtn{ color:var(--c-edit)!important; }
+.term-ic [onclick^="clearLog"]{ color:var(--c-del)!important; }
+.term-ic [onclick^="copyLog"]{ color:var(--c-check)!important; }
+.term-ic [onclick*="classList.toggle('full')"]{ color:var(--c-upload)!important; }
+
+/* --- ម៉ឺនុយ​ឯកសារ (Rename / Copy / Delete…) --- */
+.rowmenu button{ transition:background .2s,transform .2s,color .2s; }
+.rowmenu button:hover{ transform:translateX(3px); }
+.rowmenu button[data-fn=download]{ color:var(--c-down)!important; }
+.rowmenu button[data-fn=edit]{ color:var(--c-edit2)!important; }
+.rowmenu button[data-fn=rename]{ color:var(--c-new2)!important; }
+.rowmenu button[data-fn=copy]{ color:var(--c-check2)!important; }
+.rowmenu button[data-fn=move],.rowmenu button[data-fn=unarchive]{ color:var(--c-arch2)!important; }
+.rowmenu button[data-fn=delete]{ color:var(--c-stop2)!important; }
+
+/* --- Chip filter តាមស្ថានភាព --- */
+:is(body,body.app,body.app.theme-dark) .chip-btn[data-f=stopped].on{ background:linear-gradient(110deg,#94a3b8,#64748b); color:#0b1220; }
+:is(body,body.app,body.app.theme-dark) .chip-btn[data-f=running]{ color:var(--c-start2); }
+:is(body,body.app,body.app.theme-dark) .chip-btn[data-f=running].on{ color:#032a1b; }
+
+/* ============================================================
+   5) ពណ៌ស្ថានភាព: Tag / Badge / Alert / Bar / Log / Menu
+   ============================================================ */
+:is(body,body.app,body.app.theme-dark) .tag,:is(body,body.app,body.app.theme-dark) .badge{ border:1px solid transparent; }
+:is(body,body.app,body.app.theme-dark) .tag-ok,:is(body,body.app,body.app.theme-dark) .badge-ok{ background:rgba(52,211,153,.16); color:#10b981; border-color:rgba(52,211,153,.4); }
+:is(body,body.app,body.app.theme-dark) .tag-warn,:is(body,body.app,body.app.theme-dark) .badge-warn{ background:rgba(251,191,36,.18); color:#d97706; border-color:rgba(251,191,36,.45); }
+:is(body,body.app,body.app.theme-dark) .tag-off{ background:rgba(148,163,184,.16); color:#64748b; border-color:rgba(148,163,184,.35); }
+:is(body,body.app,body.app.theme-dark) .badge-info{ background:rgba(96,165,250,.16); color:#3b82f6; border-color:rgba(96,165,250,.4); }
+:is(body,body.app,body.app.theme-dark) .badge-err{ background:rgba(248,113,113,.16); color:#ef4444; border-color:rgba(248,113,113,.4); }
+body.app.theme-dark .tag-ok,body.app.theme-dark .badge-ok{ color:#34d399; }
+body.app.theme-dark .tag-warn,body.app.theme-dark .badge-warn{ color:#fbbf24; }
+body.app.theme-dark .tag-off{ color:#94a3b8; }
+body.app.theme-dark .badge-info{ color:#93c5fd; }
+body.app.theme-dark .badge-err{ color:#fca5a5; }
+.tag-warn .sdot{ background:#f59e0b!important; animation:uiPing 1.6s infinite; box-shadow:none; }
+.tag-off .sdot{ background:#94a3b8!important; }
+
+/* Card Server មានរឹមពណ៌តាមស្ថានភាព */
+.app .srv[data-status=running]{ border-color:rgba(52,211,153,.55); }
+.app .srv[data-status=error]{ border-color:rgba(248,113,113,.6); }
+.app .srv[data-status=stopped]{ border-color:rgba(148,163,184,.3); }
+
+/* Alert */
+.alert-ok{ background:rgba(52,211,153,.14)!important; border:1px solid rgba(52,211,153,.4)!important; color:#10b981!important; }
+.alert-error{ background:rgba(248,113,113,.14)!important; border:1px solid rgba(248,113,113,.4)!important; color:#ef4444!important; }
+
+/* Progress bar តាមកម្រិត (JS: ui-fx.js ដាក់ data-level) */
+.app .bar>span,.app .track>span{ background:linear-gradient(90deg,#34d399,#22d3ee); }
+.app .bar>span[data-level=mid],.app .track>span[data-level=mid]{ background:linear-gradient(90deg,#fbbf24,#f59e0b); }
+.app .bar>span[data-level=high],.app .track>span[data-level=high]{ background:linear-gradient(90deg,#fb923c,#ef4444); }
+
+/* Log Console */
+#logBox .ln-err{ color:#fb7185!important; } #logBox .ln-warn{ color:#fcd34d!important; } #logBox .ln-info{ color:#7dd3fc!important; }
+
+/* Admin stat: ពណ៌តាមប្រភេទ */
+.grid-4>.stat:nth-child(1) .v{ color:var(--c-down); }
+.grid-4>.stat:nth-child(2) .v{ color:var(--c-upload); }
+.grid-4>.stat:nth-child(3) .v{ color:var(--c-start); }
+.grid-4>.stat:nth-child(4) .v{ color:var(--c-edit); }
+
+/* Sidebar icon តាមមុខងារ */
+.drawer a:not(.active) .ic{ transition:transform .3s var(--ease); }
+.drawer a:hover .ic{ transform:scale(1.18) rotate(-6deg); }
+.drawer a[href="/dashboard"]:not(.active) .ic{ color:var(--c-start2); }
+.drawer a[href="/create"]:not(.active) .ic{ color:var(--c-upload2); }
+.drawer a[href="/billing"]:not(.active) .ic{ color:var(--c-edit2); }
+.drawer a[href="/support"]:not(.active) .ic{ color:var(--c-check2); }
+.drawer a[href="/notifications"]:not(.active) .ic{ color:var(--c-warn); }
+.drawer a[href="/settings"]:not(.active) .ic{ color:var(--c-arch2); }
+.drawer a[href="/admin"]:not(.active) .ic{ color:var(--c-stop2); }
+.app .drawer a.active{ background:linear-gradient(110deg,#34d399,#22d3ee)!important; color:#032a1b!important; }
+.app .drawer a.active .ic{ color:#032a1b!important; }
+
+/* ============================================================
+   SOFT MIST BUTTONS — soft/frosted fill, clear text, strong role color
+   Light + Dark
+   ============================================================ */
+
+:root {
+  --green: #0d9f6e !important;
+  --cyan: #0891b2 !important;
+  --danger: #dc3b3b !important;
+  --warn: #d97706 !important;
+  --muted: #64748b !important;
+  --border-g: rgba(13, 159, 110, .35) !important;
+  --glow: 0 4px 16px rgba(13, 159, 110, .12) !important;
+}
+
+body, body.app.theme-dark, html.pre-dark body {
+  --green: #34d399 !important;
+  --cyan: #22d3ee !important;
+  --danger: #f87171 !important;
+  --warn: #fbbf24 !important;
+  --muted: #94a3b8 !important;
+  --text: #f8fafc !important;
+}
+
+body.app:not(.theme-dark):not(.theme-oled) {
+  --green: #0d9f6e !important;
+  --cyan: #0e7490 !important;
+  --danger: #dc2626 !important;
+  --warn: #b45309 !important;
+  --muted: #64748b !important;
+  --text: #0f172a !important;
+}
+
+/* Base soft button surface */
+.btn,
+.btn-soft,
+.btn-primary,
+.btn-gradient,
+.btn-green,
+.btn-red,
+.btn-danger,
+.btn-red-solid,
+.btn-ghost,
+.btn-manage,
+.app .btn-soft,
+.app .btn-green {
+  border-radius: 12px !important;
+  font-weight: 650 !important;
+  letter-spacing: .01em !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06) !important;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s !important;
+}
+
+/* Primary / gradient — soft teal mist, dark clear text on light; soft fill on dark */
+.btn-primary,
+.btn-gradient,
+button.btn-primary {
+  background: linear-gradient(135deg, rgba(13,159,110,.22), rgba(8,145,178,.18)) !important;
+  border: 1.5px solid rgba(13,159,110,.45) !important;
+  color: #064e3b !important;
+  box-shadow: 0 2px 12px rgba(13,159,110,.12) !important;
+}
+.btn-primary:hover,
+.btn-gradient:hover {
+  background: linear-gradient(135deg, rgba(13,159,110,.32), rgba(8,145,178,.28)) !important;
+  border-color: rgba(13,159,110,.65) !important;
+  color: #022c22 !important;
+  filter: none !important;
+}
+body.app.theme-dark .btn-primary,
+body.app.theme-dark .btn-gradient,
+html.pre-dark body .btn-primary {
+  background: linear-gradient(135deg, rgba(52,211,153,.22), rgba(34,211,238,.16)) !important;
+  border: 1.5px solid rgba(52,211,153,.45) !important;
+  color: #ecfdf5 !important;
+}
+body.app.theme-dark .btn-primary:hover,
+body.app.theme-dark .btn-gradient:hover {
+  background: linear-gradient(135deg, rgba(52,211,153,.32), rgba(34,211,238,.26)) !important;
+  color: #ffffff !important;
+}
+
+/* Green / Start / success actions — soft green mist */
+.btn-green,
+.btn-soft.btn-green,
+button.btn-green,
+.app .btn-green {
+  background: rgba(13, 159, 110, .16) !important;
+  border: 1.5px solid rgba(13, 159, 110, .42) !important;
+  color: #065f46 !important;
+  box-shadow: none !important;
+}
+.btn-green:hover,
+.btn-soft.btn-green:hover {
+  background: rgba(13, 159, 110, .28) !important;
+  border-color: rgba(13, 159, 110, .6) !important;
+  color: #022c22 !important;
+  filter: none !important;
+}
+body.app.theme-dark .btn-green,
+body.app.theme-dark .btn-soft.btn-green {
+  background: rgba(52, 211, 153, .18) !important;
+  border: 1.5px solid rgba(52, 211, 153, .4) !important;
+  color: #a7f3d0 !important;
+}
+body.app.theme-dark .btn-green:hover,
+body.app.theme-dark .btn-soft.btn-green:hover {
+  background: rgba(52, 211, 153, .28) !important;
+  color: #ecfdf5 !important;
+}
+
+/* Red / Delete / Stop — soft rose mist, strong readable text */
+.btn-red,
+.btn-soft.btn-red,
+.btn-red-solid,
+.btn-danger,
+button.btn-red {
+  background: rgba(220, 59, 59, .12) !important;
+  border: 1.5px solid rgba(220, 59, 59, .38) !important;
+  color: #991b1b !important;
+  box-shadow: none !important;
+}
+.btn-red:hover,
+.btn-soft.btn-red:hover,
+.btn-danger:hover {
+  background: rgba(220, 59, 59, .22) !important;
+  border-color: rgba(220, 59, 59, .55) !important;
+  color: #7f1d1d !important;
+}
+body.app.theme-dark .btn-red,
+body.app.theme-dark .btn-soft.btn-red,
+body.app.theme-dark .btn-danger {
+  background: rgba(248, 113, 113, .14) !important;
+  border: 1.5px solid rgba(248, 113, 113, .38) !important;
+  color: #fecaca !important;
+}
+body.app.theme-dark .btn-red:hover,
+body.app.theme-dark .btn-soft.btn-red:hover {
+  background: rgba(248, 113, 113, .24) !important;
+  color: #fff1f2 !important;
+}
+
+/* Soft secondary — frosted white / slate, clear ink */
+.btn-soft:not(.btn-green):not(.btn-red),
+.app .btn-soft:not(.btn-green):not(.btn-red) {
+  background: rgba(255, 255, 255, .72) !important;
+  border: 1.5px solid rgba(148, 163, 184, .45) !important;
+  color: #1e293b !important;
+}
+.btn-soft:not(.btn-green):not(.btn-red):hover {
+  background: rgba(241, 245, 249, .95) !important;
+  border-color: rgba(100, 116, 139, .55) !important;
+  color: #0f172a !important;
+}
+body.app.theme-dark .btn-soft:not(.btn-green):not(.btn-red),
+body.app.theme-dark .app .btn-soft:not(.btn-green):not(.btn-red) {
+  background: rgba(30, 41, 59, .55) !important;
+  border: 1.5px solid rgba(148, 163, 184, .28) !important;
+  color: #e2e8f0 !important;
+}
+body.app.theme-dark .btn-soft:not(.btn-green):not(.btn-red):hover {
+  background: rgba(51, 65, 85, .7) !important;
+  border-color: rgba(148, 163, 184, .45) !important;
+  color: #f8fafc !important;
+}
+
+/* Ghost */
+.btn-ghost {
+  background: transparent !important;
+  border: 1.5px solid rgba(148, 163, 184, .4) !important;
+  color: #334155 !important;
+}
+.btn-ghost:hover {
+  background: rgba(13, 159, 110, .08) !important;
+  border-color: rgba(13, 159, 110, .4) !important;
+  color: #065f46 !important;
+}
+body.app.theme-dark .btn-ghost {
+  border-color: rgba(148, 163, 184, .3) !important;
+  color: #e2e8f0 !important;
+}
+body.app.theme-dark .btn-ghost:hover {
+  background: rgba(52, 211, 153, .1) !important;
+  border-color: rgba(52, 211, 153, .4) !important;
+  color: #a7f3d0 !important;
+}
+
+/* Chips / active — soft fill + clear label */
+.chip-btn.on,
+.seg button.on {
+  background: rgba(13, 159, 110, .2) !important;
+  border-color: rgba(13, 159, 110, .5) !important;
+  color: #064e3b !important;
+  font-weight: 700 !important;
+}
+body.app.theme-dark .chip-btn.on,
+body.app.theme-dark .seg button.on {
+  background: rgba(52, 211, 153, .22) !important;
+  border-color: rgba(52, 211, 153, .45) !important;
+  color: #ecfdf5 !important;
+}
+
+/* Links soft but readable */
+a { color: #0d9f6e !important; }
+a:hover { color: #047857 !important; }
+body.app.theme-dark a { color: #34d399 !important; }
+body.app.theme-dark a:hover { color: #6ee7b7 !important; }
+
+.drawer a.active {
+  background: rgba(13, 159, 110, .12) !important;
+  color: #065f46 !important;
+  font-weight: 700 !important;
+}
+body.app.theme-dark .drawer a.active {
+  background: rgba(52, 211, 153, .14) !important;
+  color: #a7f3d0 !important;
+}
+
+/* Progress — soft gradient, still visible */
+.meter > span,
+.upbar > span {
+  background: linear-gradient(90deg, rgba(13,159,110,.85), rgba(8,145,178,.75)) !important;
+}
+
+/* Badges soft */
+.badge-ok, .status-running, .tag-green {
+  background: rgba(13, 159, 110, .15) !important;
+  color: #065f46 !important;
+  border: 1px solid rgba(13,159,110,.3);
+}
+body.app.theme-dark .badge-ok {
+  background: rgba(52, 211, 153, .18) !important;
+  color: #a7f3d0 !important;
+}
+.badge-err, .status-error, .tag-red {
+  background: rgba(220, 59, 59, .12) !important;
+  color: #991b1b !important;
+}
+body.app.theme-dark .badge-err {
+  background: rgba(248, 113, 113, .16) !important;
+  color: #fecaca !important;
+}
+.badge-warn, .tag-warn {
+  background: rgba(217, 119, 6, .14) !important;
+  color: #92400e !important;
+}
+
+/* Input focus soft */
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(13, 159, 110, .55) !important;
+  box-shadow: 0 0 0 3px rgba(13, 159, 110, .12) !important;
+}

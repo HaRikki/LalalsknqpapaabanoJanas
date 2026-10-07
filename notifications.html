@@ -1,0 +1,28 @@
+{% extends "base_app.html" %}
+{% set active = 'notifications' %}
+{% block title %}Notifications{% endblock %}
+{% block heading %}Notifications{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Notifications</h1><p class="muted">Updates about your services and account</p></div>
+  <button class="btn btn-ghost btn-sm" onclick="readAll()">Mark all read</button>
+</div>
+<div class="card">
+  {% for n in notes %}
+  <div class="note {% if n.is_read %}read{% endif %}">
+    <div class="flex-between"><strong>{{ n.title }}</strong><span class="muted text-sm">{{ n.created_at }}</span></div>
+    <p class="muted">{{ n.body }}</p>
+  </div>
+  {% else %}
+  <p class="empty">No notifications</p>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  async function readAll() {
+    await api('/api/notifications/read-all', { method: 'POST' });
+    location.reload();
+  }
+</script>
+{% endblock %}

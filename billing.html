@@ -1,0 +1,118 @@
+{% extends "base_app.html" %}
+{% set active = 'billing' %}
+{% block title %}Billing{% endblock %}
+{% block heading %}Invoices{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Invoices</h1><p class="muted">View and pay your billing history</p></div>
+  <div class="actions"><a class="btn btn-primary btn-sm" href="/create">+ Order service</a></div>
+</div>
+
+<div class="inv-list">
+{% for o in orders %}
+  <div class="inv-card">
+    <div class="inv-ico"><svg class="ic"><use href="#i-file"/></svg></div>
+    <div class="inv-meta">
+      <div class="inv-id">#{{ o.id }}{% if o.created_at %} · {{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '' }}{% endif %}</div>
+      <span class="badge {% if o.status == 'paid' or o.status == 'completed' %}badge-ok{% elif o.status == 'pending' or o.status == 'awaiting_confirm' %}badge-info{% else %}badge-warn{% endif %}">{{ o.status|title }}</span>
+    </div>
+    <div class="inv-amt">${{ '%.2f'|format(o.amount or 0) }} USD</div>
+    {% if aba_enabled and o.status in ['pending','awaiting_confirm'] and (o.amount or 0) > 0 %}
+    <button class="btn btn-gradient btn-sm" type="button" data-pay-order="{{ o.id }}" onclick="payAba({{ o.id }}, {{ '%.2f'|format(o.amount or 0) }})">Pay with ABA KHQR</button>
+    {% elif o.status in ['pending','awaiting_confirm'] and (o.amount or 0) > 0 %}
+    <span class="muted sm">Waiting admin confirm</span>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="panel-card empty">No invoices yet. <a href="/create">Order a service</a></div>
+{% endfor %}
+</div>
+
+<div class="section-head" style="margin-top:1.5rem"><h3>Plans</h3></div>
+<div class="grid grid-3">
+{% for plan in plans %}
+  <div class="panel-card plan-mini">
+    <h3>{{ plan.name }}</h3>
+    <div class="price">{% if plan.price_monthly and plan.price_monthly > 0 %}${{ '%.2f'|format(plan.price_monthly) }}<small>/mo</small>{% else %}FREE{% endif %}</div>
+    <p class="muted sm">{{ plan.ram_mb }} MB RAM · {{ plan.cpu }} CPU · {{ plan.storage_gb }} GB</p>
+    <a class="btn-soft btn-sm" href="/create">Select</a>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let payTimer = null;
+  async function payAba(orderId, amount) {
+    amount = Number(amount) || 0;
+    const wrap = document.createElement('div');
+    wrap.className = 'pay-box';
+    wrap.innerHTML = '<p class="muted">Creating QR…</p>';
+    const dlg = ui.open({
+      title: amount > 0 ? ('Pay $' + amount.toFixed(2) + ' with ABA KHQR') : 'Pay with ABA KHQR',
+      body: wrap,
+      actions: [{ label: 'Close', run: d => d.close() }],
+      onClose: () => { clearTimeout(payTimer); payTimer = null; }
+    });
+    let closed = false;
+    const origClose = dlg.close; dlg.close = (v) => { closed = true; origClose(v); };
+
+    async function start() {
+      wrap.innerHTML = '<p class="muted">Creating QR…</p>';
+      let q;
+      try { q = await api('/api/orders/' + orderId + '/pay/aba', { method: 'POST' }); }
+      catch (e) { wrap.innerHTML = '<div class="alert alert-error"></div>'; wrap.firstChild.textContent = e.message; return; }
+      if (q.amount) amount = Number(q.amount) || amount;
+      wrap.innerHTML =
+        '<img class="pay-card" alt="ABA KHQR" />' +
+        '<p class="pay-status" id="payStatus">Waiting for payment… scan with ABA Mobile or any KHQR app.</p>' +
+        '<p class="muted sm" id="payLeft"></p>' +
+        '<a class="btn-soft btn-sm" target="_blank" rel="noopener" id="payLink" style="display:none">Open payment page</a>';
+      wrap.querySelector('img').src = q.card_image || q.qr_image;
+      if (q.pay_url) { const a = wrap.querySelector('#payLink'); a.href = q.pay_url; a.style.display = ''; }
+      const exp = q.expires_at ? new Date(q.expires_at).getTime() : 0;
+      const stEl = wrap.querySelector('#payStatus'), leftEl = wrap.querySelector('#payLeft');
+      async function poll() {
+        if (closed) return;
+        if (exp) {
+          const s = Math.max(0, Math.round((exp - Date.now()) / 1000));
+          leftEl.textContent = 'QR valid for ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        }
+        try {
+          const r = await api('/api/orders/' + orderId + '/pay/check', { method: 'POST' });
+          if (r.status === 'PAID') {
+            stEl.textContent = '✅ Payment received. Activating server…';
+            toast('Payment received — server activated');
+            setTimeout(() => {
+              if (r.project_id) location.href = '/project/' + r.project_id;
+              else location.href = '/dashboard';
+            }, 1200);
+            return;
+          }
+          if (r.status === 'EXPIRED') {
+            stEl.textContent = 'QR expired.';
+            wrap.insertAdjacentHTML('beforeend', '<button class="btn btn-primary btn-sm" id="payNew" type="button">Generate new QR</button>');
+            wrap.querySelector('#payNew').onclick = start;
+            return;
+          }
+          if (r.status === 'MISMATCH') { stEl.textContent = r.message; return; }
+        } catch (e) { /* keep polling */ }
+        payTimer = setTimeout(poll, 4000);
+      }
+      clearTimeout(payTimer); payTimer = setTimeout(poll, 3000);
+    }
+    start();
+  }
+  // After Place order → /billing?pay=ORDER_ID opens QR automatically
+  (function () {
+    const id = new URLSearchParams(location.search).get('pay');
+    if (!id) return;
+    history.replaceState(null, '', '/billing');
+    setTimeout(() => {
+      const btn = document.querySelector('[data-pay-order="' + id + '"]');
+      if (btn) btn.click();
+      else payAba(parseInt(id, 10), 0);
+    }, 300);
+  })();
+</script>
+{% endblock %}

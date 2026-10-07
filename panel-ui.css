@@ -1,0 +1,163 @@
+/* Anajak Host — panel UI v2 (loaded after panel.css)
+   Fixes class collisions, adds modals / editor / live widgets, completes dark mode. */
+
+/* ---------- Bug fix: ".toggle" was defined twice (collapse button vs. switch) ---------- */
+.srv-toggle{background:none;border:none;color:var(--muted);font:500 .9rem var(--font);cursor:pointer;display:flex;align-items:center;gap:.4rem;padding:.3rem 0;width:auto;height:auto;border-radius:6px}
+.srv-toggle:hover{color:var(--text)}
+.srv-toggle .ic{transition:transform .2s}
+.srv-top.collapsed .srv-toggle .ic{transform:rotate(180deg)}
+
+/* ---------- Bug fix: ".seg" inside the console must not get the light pill style ---------- */
+.term .seg{background:transparent;border:none;border-radius:0;overflow:visible;display:flex}
+.term .seg button{height:auto}
+
+/* ---------- Focus + small polish ---------- */
+.app button:focus-visible,.app a:focus-visible,.app input:focus-visible,.app select:focus-visible,.app textarea:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+body.modal-open{overflow:hidden}
+.app .panel-card{box-shadow:0 1px 2px rgba(40,40,80,.05)}
+.app .srv{transition:transform .15s ease,box-shadow .15s ease}
+.app .srv:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(40,40,90,.14)}
+.app .btn-soft:disabled{opacity:.55;cursor:not-allowed}
+.app .btn-xs.btn-red,.app .btn-sm.btn-red{height:auto}
+.srv-sub{font-size:.8rem;color:var(--muted);margin-top:.15rem;word-break:break-all}
+
+/* ---------- Status dot ---------- */
+.sdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#9a9ab0;margin-right:.4rem;vertical-align:middle}
+.tag-ok .sdot,.sdot.ok{background:#0a8a0a;box-shadow:0 0 0 3px rgba(10,138,10,.18)}
+.tag-warn .sdot{background:#b8860b}
+.tag-off .sdot{background:#8a8aa0}
+
+/* ---------- Servers page toolbar ---------- */
+.srv-tools{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.srv-tools .search{flex:1;min-width:200px}
+.chips{display:flex;gap:.35rem;flex-wrap:wrap}
+.chip-btn{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:.3rem .8rem;font:500 .82rem var(--font);cursor:pointer}
+.chip-btn.on{background:var(--green);border-color:var(--green);color:#fff}
+.chip-btn b{font-weight:600;opacity:.8;margin-left:.2rem}
+.srv-actions{display:grid;grid-template-columns:1fr auto auto auto;gap:.4rem;align-items:center}
+.qa{width:40px;height:40px;border-radius:10px;border:1px solid var(--btn-b);background:var(--btn);color:var(--btn-ink);display:grid;place-items:center;cursor:pointer}
+.qa:hover{filter:brightness(1.06)}
+.qa:disabled{opacity:.5;cursor:wait}
+.qa.go{background:#8fbd8f;border-color:#7fb07f;color:#fff}
+.qa.halt{background:#8f1d1d;border-color:#7a1818;color:#fff}
+.srv .bar{height:5px;border-radius:999px;margin:.1rem 0 0;overflow:hidden}
+.srv .bar>span{display:block;height:100%;border-radius:999px;transition:width .4s ease}
+
+/* ---------- Usage meters ---------- */
+.use{position:relative}
+.meter{height:6px;border-radius:999px;background:rgba(0,0,0,.09);overflow:hidden;margin-top:.55rem;width:min(220px,100%)}
+.meter>span{display:block;height:100%;width:0;border-radius:999px;background:var(--green);transition:width .5s ease,background .3s}
+.meter.hot>span{background:#d9822b}.meter.crit>span{background:#c0392b}
+
+/* ---------- Console ---------- */
+#logBox{min-height:240px;max-height:min(60vh,520px)}
+#logBox .ln{display:block}
+#logBox .ln-err{color:#ff8a80}
+#logBox .ln-warn{color:#ffd180}
+#logBox .ln-info{color:#9ad7ff}
+.term-ic .on{color:#fff;background:rgba(255,255,255,.14)}
+
+/* ---------- Files ---------- */
+.fm-list.drag{outline:2px dashed var(--green);outline-offset:-6px;background:rgba(10,138,10,.06)}
+.drop-hint{display:none;position:absolute;inset:0;place-items:center;font-weight:600;color:var(--green);background:rgba(255,255,255,.7);z-index:5;border-radius:12px;pointer-events:none}
+.fm-wrap{position:relative}
+.fm-wrap.drag .drop-hint{display:grid}
+.fm-bulk{display:none;align-items:center;gap:.5rem;padding:.4rem .6rem;border-radius:10px;background:rgba(10,138,10,.1);font-size:.85rem}
+.fm-bulk.show{display:flex}
+.rowmenu button{white-space:nowrap}
+.fm-item .nm{display:flex;align-items:center;gap:.4rem}
+.upbar{height:4px;border-radius:999px;background:rgba(0,0,0,.08);overflow:hidden;margin:.4rem 0;display:none}
+.upbar.show{display:block}
+.upbar>span{display:block;height:100%;width:0;background:var(--green);transition:width .15s}
+
+/* ---------- Backups / domains / env / deployments rows ---------- */
+.bk{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+.bk .n{flex:1;min-width:180px}
+.bk .acts{display:flex;gap:.35rem;flex-wrap:wrap}
+.row2{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;padding:.7rem 0;border-bottom:1px solid var(--border)}
+.row2:last-child{border-bottom:none}
+.row2 .k{font-weight:500;word-break:break-all;min-width:0;flex:1}
+.row2 .v{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.env-row{gap:.5rem;flex-wrap:wrap}
+.env-row code{min-width:0;font-size:.85rem}
+.env-row .acts{display:flex;gap:.35rem}
+.env-bar{display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin:.9rem 0 .2rem}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+
+/* ---------- Floating console shortcut: keep clear of content on small screens ---------- */
+@media(max-width:640px){.fab-console{top:auto;bottom:1rem;right:1rem;border-radius:14px;border-right:1px solid var(--btn-b);transform:none;height:48px}}
+
+/* ---------- Modals ---------- */
+.modal-bg{position:fixed;inset:0;z-index:600;background:rgba(15,18,30,.5);display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;transition:opacity .15s;backdrop-filter:blur(2px)}
+.modal-bg.in{opacity:1}
+.modal{background:#f7f7fb;color:var(--text);border:1px solid var(--border);border-radius:14px;width:min(440px,100%);max-height:calc(100vh - 2rem);display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(20,20,50,.35);transform:translateY(8px) scale(.98);transition:transform .15s}
+.modal-bg.in .modal{transform:none}
+.modal-wide{width:min(920px,100%);height:min(720px,calc(100vh - 2rem))}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
+.modal-head h3{margin:0;font-size:1rem;font-weight:600;word-break:break-all}
+.modal-x{background:none;border:none;font-size:1.5rem;line-height:1;color:var(--muted);cursor:pointer;border-radius:8px;width:32px;height:32px}
+.modal-x:hover{background:rgba(0,0,0,.06);color:var(--text)}
+.modal-body{padding:1rem;overflow:auto;flex:1;min-height:0}
+.modal-wide .modal-body{padding:0;display:flex}
+.modal-foot{display:flex;justify-content:flex-end;gap:.5rem;padding:.75rem 1rem;border-top:1px solid var(--border)}
+.modal-msg{margin:0;line-height:1.55;word-break:break-word}
+.modal-label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:.35rem}
+.modal-input{width:100%}
+
+/* ---------- Code editor ---------- */
+.ed{display:flex;flex-direction:column;flex:1;min-width:0}
+.ed-area{flex:1;width:100%;min-height:0;resize:none;border:none!important;border-radius:0!important;box-shadow:none!important;background:#fbfbfe;color:#1b1b2a;font:13px/1.6 ui-monospace,Menlo,Consolas,monospace!important;padding:.9rem 1rem!important;tab-size:2;white-space:pre;overflow:auto}
+.ed-bar{display:flex;justify-content:space-between;gap:1rem;padding:.35rem 1rem;border-top:1px solid var(--border);font-size:.75rem;color:var(--muted);background:#eef0f6}
+.ed-state.dirty{color:#b8860b;font-weight:600}
+
+/* ================= Dark / OLED completion ================= */
+body.app.theme-dark .panel-card{box-shadow:none}
+body.app.theme-dark .btn-red{background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.4);color:#f87171!important}
+body.app.theme-dark .btn-green{background:#1f9d6a;border-color:#1f9d6a;color:#fff!important}
+body.app.theme-dark .cmd{background:#1a2030;color:#9aa4b8}
+body.app.theme-dark .cmd input{color:var(--text)}
+body.app.theme-dark .cmd input::placeholder{color:#6b7488}
+body.app.theme-dark .fab-console{background:var(--btn);border-color:var(--btn-b);color:var(--btn-ink)}
+body.app.theme-dark .btn-manage{background:var(--btn);border-color:var(--btn-b);color:var(--btn-ink)!important}
+body.app.theme-dark .btn-manage:hover{background:#2f3648}
+body.app.theme-dark .seg button.on{background:#2f3648;color:#fff}
+body.app.theme-dark .term-bar .seg{background:transparent}
+body.app.theme-dark .use .gi{background:#1f9d6a}
+body.app.theme-dark .sq{background:rgba(45,212,160,.15);color:#2dd4a0}
+body.app.theme-dark .meter,body.app.theme-dark .upbar{background:rgba(255,255,255,.09)}
+body.app.theme-dark .chip-btn{background:var(--card);border-color:var(--border);color:var(--text)}
+body.app.theme-dark .chip-btn.on{background:#1f9d6a;border-color:#1f9d6a;color:#fff}
+body.app.theme-dark .qa{background:var(--btn);border-color:var(--btn-b);color:var(--btn-ink)}
+body.app.theme-dark .qa.go{background:#2d6b4a;border-color:#256b45;color:#fff}
+body.app.theme-dark .qa.halt{background:#7f1d1d;border-color:#6b1818;color:#fff}
+body.app.theme-dark .crumbs button:hover{color:var(--text)}
+body.app.theme-dark .modal{background:#171c28;border-color:var(--border)}
+body.app.theme-dark .modal-x:hover{background:rgba(255,255,255,.08)}
+body.app.theme-dark .ed-area{background:#0f1219;color:#e2e8f0}
+body.app.theme-dark .ed-bar{background:#12161f}
+body.app.theme-dark .fm-bulk{background:rgba(45,212,160,.12)}
+body.app.theme-dark .drop-hint{background:rgba(15,18,25,.75);color:#2dd4a0}
+body.app.theme-dark .srv:hover{box-shadow:0 10px 26px rgba(0,0,0,.45)}
+body.app.theme-dark .srv::before{opacity:.22}
+body.app.theme-dark .banner{opacity:.9}
+body.app.theme-dark .tag-ok .sdot,body.app.theme-dark .sdot.ok{background:#2dd4a0;box-shadow:0 0 0 3px rgba(45,212,160,.2)}
+body.app.theme-dark .row2,body.app.theme-dark .env-row{border-bottom-color:var(--border)}
+body.app.theme-dark .toast{background:#1c2230}
+body.app.theme-oled .modal,body.app.theme-oled .panel-card{background:#0a0a0a}
+body.app.theme-oled .ed-area{background:#000}
+
+/* ---------- Layout fixes found in browser testing ---------- */
+.app .lang-btn{width:auto;min-width:34px;padding:0 .65rem;font-size:.8rem;font-weight:600;white-space:nowrap;line-height:1}
+.app .fm-list{margin:0 -1rem -.85rem}
+.app .fm-head{margin:0 -1rem;padding:.5rem 1rem}
+.fm-head .fm-cb input{margin:0;width:18px;height:18px;padding:0}
+body.app.compact .fm-list{margin:0 -.8rem -.65rem}
+body.app.compact .fm-head{margin:0 -.8rem;padding:.4rem .8rem}
+.app .banner{height:clamp(110px,22vw,160px)}
+.app .banner::after{font-size:clamp(2.4rem,10vw,4rem)}
+.ed-area:focus-visible{outline:none}
+
+/* ---------- Calmer watermark + search/command inputs in dark mode ---------- */
+.app .srv::after{opacity:.3;font-size:clamp(2.4rem,9vw,3.4rem);right:.9rem}
+body.app.theme-dark .srv::after{opacity:.1}
+body.app.theme-dark .search input,body.app.theme-dark .cmd input{background:transparent}

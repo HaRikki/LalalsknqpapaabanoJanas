@@ -1,0 +1,38 @@
+{% extends "base_public.html" %}
+{% block title %}Login — Anajak Host{% endblock %}
+{% block body_class %}login-page{% endblock %}
+{% block topbar_right %}<a class="btn btn-ghost btn-sm" href="/register">Register</a>{% endblock %}
+{% block content %}
+<div class="login-box">
+  <div class="container">
+    <div class="login-card">
+      <h1>Sign in to your account</h1>
+      <div id="err" class="alert alert-error hidden"></div>
+      <form id="form">
+        <label>Email <span class="req">*</span></label>
+        <input type="email" name="email" required placeholder="Enter your email" autocomplete="email" />
+        <label>Password <span class="req">*</span></label>
+        <input type="password" name="password" required placeholder="Enter your password" autocomplete="current-password" />
+        <button class="btn btn-gradient btn-block btn-lg" type="submit">Login</button>
+      </form>
+      {% include "_social_buttons.html" %}
+      <p class="muted mt-2" style="text-align:center">No account? <a href="/register">Create account</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {  // errors coming back from Google / Telegram: /login?error=...
+    const m = new URLSearchParams(location.search).get('error');
+    if (m) { showErr(document.getElementById('err'), m); history.replaceState(null, '', location.pathname); }
+  })();
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const d = await api('/api/auth/login', { method: 'POST', body: new FormData(e.target) });
+      location.href = d.role === 'admin' ? '/admin' : '/dashboard';
+    } catch (err) { showErr(document.getElementById('err'), err.message); }
+  };
+</script>
+{% endblock %}

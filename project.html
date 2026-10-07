@@ -1,0 +1,803 @@
+{% extends "base_app.html" %}
+{% set active = 'project' %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block heading %}{{ project.name }}{% endblock %}
+
+{% block server_nav %}
+<div class="drawer-group">General</div>
+<a href="#dashboard" data-sec="dashboard"><svg class="ic"><use href="#i-grid"/></svg> Dashboard</a>
+<a href="#console" data-sec="console"><svg class="ic"><use href="#i-term"/></svg> Console</a>
+<div class="drawer-group">Management</div>
+<a href="#files" data-sec="files"><svg class="ic"><use href="#i-folder"/></svg> Files</a>
+<a href="#backups" data-sec="backups"><svg class="ic"><use href="#i-archive"/></svg> Backups</a>
+<a href="#domains" data-sec="domains"><svg class="ic"><use href="#i-globe"/></svg> Domains</a>
+<a href="#deploy" data-sec="deploy"><svg class="ic"><use href="#i-upload"/></svg> Deploy</a>
+<div class="drawer-group">Configuration</div>
+<a href="#startup" data-sec="startup"><svg class="ic"><use href="#i-sliders"/></svg> Startup</a>
+<a href="#settings" data-sec="settings"><svg class="ic"><use href="#i-gear"/></svg> Settings</a>
+{% endblock %}
+
+{% block content %}
+{% set hi = host_info %}
+{% set host = hi.display_host %}
+{% set host_ip = hi.hostname %}
+{% set server_ip = hi.server_ip %}
+<section class="panel-card srv-top" id="srvTop">
+  <div class="srv-head">
+    <h2 style="font-size:1.15rem;font-weight:700;word-break:break-word">{{ project.name }}</h2>
+    <span class="tag tag-{{ info.tag }}" id="st"><span class="sdot"></span>{{ info.label }}</span>
+  </div>
+  <div class="stat-icons">
+    <div><svg class="ic"><use href="#i-globe"/></svg> <span>{{ host }}</span></div>
+    <div><svg class="ic"><use href="#i-cpu"/></svg> <span><b id="cpu" style="font-weight:500">{{ ('%.2f'|format(info.cpu)) if info.cpu is not none else '0.00' }}%</b> <small>/ {{ (project.cpu * 100)|int }}%</small></span></div>
+    <div><svg class="ic"><use href="#i-ram"/></svg> <span><b id="ram" style="font-weight:500">{{ (info.ram or 0)|mib }}</b> <small>/ {{ project.ram_mb|mib(true) }}</small></span></div>
+    <div><svg class="ic"><use href="#i-disk"/></svg> <span><b id="disk" style="font-weight:500">{{ info.disk_mb|mib }}</b> <small>/ {{ (project.storage_gb * 1024)|mib(true) }}</small></span></div>
+  </div>
+  <button type="button" class="srv-toggle" onclick="document.getElementById('srvTop').classList.toggle('collapsed')">Server stats <svg class="ic"><use href="#i-chev"/></svg></button>
+  <hr />
+  <div class="power3">
+    <button type="button" class="pw start" onclick="act('start')" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button>
+    <button type="button" class="pw restart" onclick="act('restart')" aria-label="Restart"><svg class="ic"><use href="#i-restart"/></svg></button>
+    <button type="button" class="pw stop" onclick="act('stop')" aria-label="Stop"><svg class="ic"><use href="#i-stop"/></svg></button>
+  </div>
+</section>
+
+<!-- Dashboard -->
+<section id="sec-dashboard" class="sec">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-grid"/></svg></span><h2>Dashboard</h2></div>
+  <div class="banner rt-{{ info.rtc }}" data-rt="{{ info.rt }}" style="margin-bottom:1rem"></div>
+  <div class="cols-2">
+    <div class="panel-card rows-card">
+      <div class="t">Subscription Information</div>
+      <div class="r"><span class="k">Status:</span><span class="v">{{ 'Expired' if expires_in == 'expired' else 'Active' }}</span></div>
+      <div class="r"><span class="k">Starts:</span><span class="v">{{ starts_at_fmt }}</span></div>
+      <div class="r"><span class="k">Expires:</span><span class="v">{{ expires_at_fmt }} <small class="muted">({{ expires_in }})</small></span></div>
+      <div class="r"><span class="k">Plan:</span><span class="v">{{ plan.name if plan else '—' }}</span></div>
+      <div class="r"><span class="k">Price:</span><span class="v">{% if plan %}{{ '%.2f'|format(plan.price_monthly) }} USD{% else %}—{% endif %}</span></div>
+      <div class="r"><span class="k">Service Link:</span><span class="v">
+        {% if project.domain %}<a class="btn-soft" href="https://{{ project.domain }}" target="_blank" rel="noopener">View Service</a>
+        {% elif project.port %}<a class="btn-soft" href="http://{{ request.url.hostname }}:{{ project.port }}" target="_blank" rel="noopener">View Service</a>
+        {% else %}—{% endif %}</span></div>
+    </div>
+    <div class="panel-card rows-card">
+      <div class="t">Server Info</div>
+      <div class="r"><span class="k">Status:</span><span class="v"><span class="tag tag-{{ info.tag }}" id="st2"><span class="sdot"></span>{{ info.label }}</span></span></div>
+      <div class="r"><span class="k">Uptime:</span><span class="v">{{ info.uptime|uptime if info.status == 'running' else '—' }}</span></div>
+      <div class="r"><span class="k">Hostname:</span><span class="v">{{ host_ip }}</span></div>
+      <div class="r"><span class="k">Server IP:</span><span class="v">{{ server_ip }}</span></div>
+      <div class="r"><span class="k">Type:</span><span class="v">{{ project.project_type|replace('_', ' ') }}</span></div>
+      <div class="r"><span class="k">Server ID:</span><span class="v">#{{ project.id }} · {{ project.slug }}</span></div>
+    </div>
+  </div>
+  <div class="cols-3" style="margin-top:1rem">
+    <div class="panel-card use"><div><div class="l">CPU Usage:</div><div class="v"><span id="cpu2">{{ ('%.2f'|format(info.cpu)) if info.cpu is not none else '0.00' }}%</span> <small>/ {{ (project.cpu * 100)|int }}%</small></div><div class="meter" id="m-cpu"><span></span></div></div><span class="gi"><svg class="ic"><use href="#i-cpu"/></svg></span></div>
+    <div class="panel-card use"><div><div class="l">Memory Usage:</div><div class="v"><span id="ram2">{{ (info.ram or 0)|mib }}</span> <small>/ {{ project.ram_mb|mib(true) }}</small></div><div class="meter" id="m-ram"><span></span></div></div><span class="gi"><svg class="ic"><use href="#i-ram"/></svg></span></div>
+    <div class="panel-card use"><div><div class="l">Disk Usage:</div><div class="v"><span id="disk2">{{ info.disk_mb|mib }}</span> <small>/ {{ (project.storage_gb * 1024)|mib(true) }}</small></div><div class="meter" id="m-disk"><span></span></div></div><span class="gi"><svg class="ic"><use href="#i-disk"/></svg></span></div>
+  </div>
+</section>
+
+<!-- Console -->
+<section id="sec-console" class="sec hidden">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-term"/></svg></span><h2>Console</h2></div>
+  <div class="term" id="term">
+    <div class="term-bar">
+      <div class="seg"><button type="button" class="on" data-f="all">View All <span id="n-all"></span></button><button type="button" data-f="info">Info <span id="n-info"></span></button><button type="button" data-f="err">Errors <span id="n-err"></span></button></div>
+      <div class="term-ic">
+        <button type="button" id="pauseBtn" onclick="togglePause()" aria-label="Pause" title="Pause"><svg class="ic"><use href="#i-pause"/></svg></button>
+        <button type="button" onclick="clearLog()" aria-label="Clear logs"><svg class="ic"><use href="#i-trash"/></svg></button>
+        <button type="button" onclick="copyLog()" aria-label="Copy"><svg class="ic"><use href="#i-copy"/></svg></button>
+        <button type="button" onclick="document.getElementById('term').classList.toggle('full')" aria-label="Fullscreen"><svg class="ic"><use href="#i-expand"/></svg></button>
+      </div>
+    </div>
+    <pre id="logBox">{{ logs or 'No logs yet.' }}</pre>
+    <form class="cmd" onsubmit="sendCmd(event)">
+      <svg class="ic"><use href="#i-chevs"/></svg>
+      <input id="cmd" placeholder="Type a command..." autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <button type="button" onclick="recall()" aria-label="Previous command"><svg class="ic"><use href="#i-clock"/></svg></button>
+    </form>
+  </div>
+</section>
+
+<!-- Files -->
+<section id="sec-files" class="sec hidden">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-folder"/></svg></span><h2>File Manager</h2></div>
+  <div class="panel-card fm-wrap" id="fmWrap">
+    <div class="drop-hint">Drop files here to upload</div>
+    <div class="fm-tools">
+      <label class="search"><svg class="ic"><use href="#i-search"/></svg><input id="fq" placeholder="Search" oninput="renderFiles()" /></label>
+      <!-- nothing selected -->
+      <div class="fm-row" id="fmNormal">
+        <button type="button" class="btn-soft" onclick="mkdir()"><svg class="ic"><use href="#i-folderplus"/></svg>&nbsp; Create Directory</button>
+        <button type="button" class="btn-soft" onclick="document.getElementById('fi').click()"><svg class="ic"><use href="#i-upload"/></svg>&nbsp; Upload</button>
+        <input type="file" id="fi" class="hidden" multiple onchange="up()" />
+        <button type="button" class="btn-soft btn-green" onclick="newFile()"><svg class="ic"><use href="#i-fileplus"/></svg>&nbsp; New file</button>
+        <span class="grow"></span>
+        <button type="button" class="btn-soft" onclick="openTrash()" title="Trash" aria-label="Trash"><svg class="ic"><use href="#i-trash"/></svg></button>
+      </div>
+      <!-- one or more files selected -->
+      <div class="fm-row hidden" id="fmSel">
+        <button type="button" class="btn-soft" onclick="compressSelected()"><svg class="ic"><use href="#i-archive"/></svg>&nbsp; Archive</button>
+        <button type="button" class="btn-soft" onclick="moveSelected()"><svg class="ic"><use href="#i-chevs"/></svg>&nbsp; Move</button>
+        <button type="button" class="btn-soft hidden" id="btnUnarchive" onclick="unarchiveSelected()"><svg class="ic"><use href="#i-archive"/></svg>&nbsp; Unarchive</button>
+        <button type="button" class="btn-soft hidden" id="btnDownload" onclick="downloadSelected()"><svg class="ic"><use href="#i-download"/></svg>&nbsp; Download</button>
+        <button type="button" class="btn-soft btn-red-solid" onclick="delSelected()"><svg class="ic"><use href="#i-trash"/></svg>&nbsp; Delete</button>
+        <span class="selcount muted sm" id="selCount"></span>
+      </div>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="upbar" id="upbar"><span></span></div>
+    </div>
+    <div class="fm-head">
+      <span class="fm-cb"><input type="checkbox" id="fqAll" onchange="toggleAll(this.checked)" title="Select all" /></span>
+      <span class="fm-col-name">name</span>
+      <span class="fm-col-size">size</span>
+      <span class="fm-col-date">date</span>
+      <span class="fm-col-act"></span>
+    </div>
+    <div class="fm-list" id="fl"></div>
+  </div>
+</section>
+
+<!-- Backups -->
+<section id="sec-backups" class="sec hidden">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-archive"/></svg></span><h2>Backups</h2></div>
+  <div class="fm-row" style="margin-bottom:1rem">
+    <div class="grow"><div style="font-size:1.05rem;color:var(--muted)">Manage backups</div>
+      <div class="muted sm" id="bkCount">&nbsp;</div></div>
+    <button type="button" class="btn-soft btn-green" onclick="backup(this)">Create backup</button>
+  </div>
+  <div id="bkList"><div class="panel-card empty">…</div></div>
+</section>
+
+<!-- Startup -->
+<section id="sec-startup" class="sec hidden">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-sliders"/></svg></span><h2>Startup</h2></div>
+  <div class="panel-card">
+    <div class="field"><label>Start command</label><input id="sc" value="{{ project.start_command or '' }}" placeholder="python main.py" /></div>
+    <div class="field"><label>Port</label><input id="sp" type="number" value="{{ project.port or '' }}" /></div>
+    <label class="chk"><input type="checkbox" id="as" {{ 'checked' if project.auto_start }} /> Start automatically</label>
+    <label class="chk"><input type="checkbox" id="ar" {{ 'checked' if project.auto_restart }} /> Restart if it crashes</label>
+    <button type="button" class="btn-soft btn-green" style="margin-top:1rem" onclick="save(this)">Save changes</button>
+  </div>
+  <div class="sec-title"><h2 style="font-size:1.15rem">Environment variables</h2></div>
+  <div class="panel-card">
+    <div class="env-add">
+      <input id="ek" placeholder="KEY" autocomplete="off" spellcheck="false" /><input id="ev" placeholder="VALUE" autocomplete="off" spellcheck="false" />
+      <button type="button" class="btn-soft btn-green" id="envAdd" onclick="addEnv()">Add</button>
+    </div>
+    <div class="env-bar"><span class="muted sm" id="envCount"></span>
+      <button type="button" class="btn-soft btn-xs" id="envEye" onclick="toggleEnv()"><svg class="ic"><use href="#i-eye"/></svg>&nbsp;<span>Show values</span></button></div>
+    <div id="envList"></div>
+  </div>
+</section>
+
+<!-- Domains -->
+<section id="sec-domains" class="sec hidden">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-globe"/></svg></span><h2>Domains</h2></div>
+  <div class="panel-card">
+    <div class="card-title">Add custom domain</div>
+    <p class="muted sm">Point DNS A/CNAME to your tunnel host, then Verify.</p>
+    <div class="fm-row" style="margin-top:.6rem">
+      <input id="domInput" placeholder="app.example.com" style="flex:1" />
+      <button type="button" class="btn-soft btn-green btn-sm" onclick="addDomain()">Add Domain</button>
+    </div>
+  </div>
+  <div class="panel-card" id="domList"><p class="muted empty">…</p></div>
+</section>
+
+<!-- Deploy -->
+<section id="sec-deploy" class="sec hidden">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-upload"/></svg></span><h2>Git Deploy</h2></div>
+  <div class="panel-card">
+    <div class="card-title">Deploy from GitHub / Git</div>
+    <p class="muted sm">Token is used only for this request and is never stored.</p>
+    <label>Repository URL</label>
+    <input id="gitRepo" placeholder="https://github.com/user/repo.git" />
+    <label>Branch</label>
+    <input id="gitBranch" value="main" />
+    <label>Access token (optional, private repos)</label>
+    <input id="gitToken" type="password" placeholder="ghp_…" autocomplete="off" />
+    <button type="button" class="btn-soft btn-green btn-sm" style="margin-top:.6rem" onclick="gitDeploy(this)">Deploy</button>
+    <pre id="gitLog" class="muted sm" style="margin-top:.75rem;white-space:pre-wrap;max-height:200px;overflow:auto"></pre>
+  </div>
+  <div class="panel-card" id="depList"><p class="muted empty">No deployments yet.</p></div>
+</section>
+
+<section id="sec-settings" class="sec hidden">
+  <div class="sec-title"><span class="sq"><svg class="ic"><use href="#i-gear"/></svg></span><h2>Settings</h2></div>
+  <div class="panel-card">
+    <div class="card-title">Change Server Details</div>
+    <div class="field"><label>Server Name</label><input id="sn" value="{{ project.name }}" maxlength="100" /></div>
+    <div class="field"><label>Domain / Subdomain</label><input id="sd" value="{{ project.domain or '' }}" placeholder="angker-smm.ndclub.top" /></div>
+    <div class="field"><label>Port</label><input id="sp2" type="number" value="{{ project.port or '' }}" placeholder="15794" /></div>
+    <button type="button" class="btn-soft btn-green btn-sm" onclick="save(this, 'settings')">Save</button>
+  </div>
+  <div class="panel-card">
+    <div class="card-title">Connection</div>
+    <div class="r"><span class="k">Hostname</span><span class="v">{{ host_info.display_host if host_info else host }}</span></div>
+    <div class="r"><span class="k">Server IP</span><span class="v">{{ host_info.server_ip if host_info else '—' }}</span></div>
+    <div class="r"><span class="k">Primary port</span><span class="v">{{ project.port or '—' }}</span></div>
+  </div>
+  <div class="panel-card">
+    <div class="card-title">Debug Information</div>
+    <div class="r"><span class="k">Server ID</span><span class="v">#{{ project.id }} · {{ project.slug }}</span></div>
+    <div class="r"><span class="k">Type</span><span class="v">{{ project.project_type|replace('_',' ') }}</span></div>
+    <div class="r"><span class="k">Status</span><span class="v"><span class="tag tag-{{ info.tag }}">{{ info.label }}</span></span></div>
+  </div>
+  <div class="panel-card rows-card">
+    <div class="t">Delete server</div>
+    <p class="muted sm" style="margin-bottom:.75rem">This removes the service and its files. It cannot be undone.</p>
+    <button type="button" class="btn-soft btn-red btn-sm" onclick="delP()">Delete service</button>
+  </div>
+</section>
+{% endblock %}
+
+{% block after_content %}
+<button type="button" class="fab-console" onclick="show('console')" aria-label="Open console"><svg class="ic"><use href="#i-term"/></svg></button>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const pid = {{ project.id }};
+  const PNAME = {{ project.name|tojson }};
+  const LIM = { cpu: {{ (project.cpu * 100)|int }}, ram: {{ project.ram_mb }}, disk: {{ project.storage_gb * 1024 }} };
+  const $ = id => document.getElementById(id);
+  let sec = 'dashboard', path = '', items = [], raw = $('logBox').textContent, filt = 'all', filesLoaded = false, paused = false, timer = null;
+  if (raw.trim() === 'No logs yet.') raw = '';
+
+  function mib(v){ if(v==null) return '—'; let u='MiB'; if(v>=1024){ v/=1024; u='GiB'; } return v.toFixed(2)+' '+u; }
+  function tag(el, s){
+    const m = s==='running' ? ['ok','Running'] : s==='stopped' ? ['off','Offline'] : ['warn', s.charAt(0).toUpperCase()+s.slice(1)];
+    el.className = 'tag tag-'+m[0]; el.innerHTML = '<span class="sdot"></span>'; el.appendChild(document.createTextNode(m[1]));
+  }
+  function meter(id, v, lim){
+    const m = $(id); if(!m || !lim) return;
+    const p = Math.max(0, Math.min(100, (v / lim) * 100));
+    m.firstElementChild.style.width = p.toFixed(1) + '%';
+    m.classList.toggle('hot', p >= 75 && p < 90); m.classList.toggle('crit', p >= 90);
+  }
+  function fmtDate(iso){
+    if(!iso) return '—';
+    try { return new Date(iso).toLocaleString(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+    catch(_){ return iso; }
+  }
+  meter('m-cpu', {{ info.cpu or 0 }}, LIM.cpu); meter('m-ram', {{ info.ram or 0 }}, LIM.ram); meter('m-disk', {{ info.disk_mb or 0 }}, LIM.disk);
+
+  /* ---- sections ---- */
+  function show(name){
+    if(!$('sec-'+name)) name='dashboard';
+    sec = name;
+    document.querySelectorAll('.sec').forEach(s => s.classList.toggle('hidden', s.id !== 'sec-'+name));
+    document.querySelectorAll('[data-sec]').forEach(a => a.classList.toggle('active', a.dataset.sec === name));
+    history.replaceState(null, '', '#'+name);
+    if(name==='files' && !filesLoaded) files();
+    if(name==='backups') loadBackups();
+    if(name==='startup') loadEnv();
+    if(name==='domains') loadDomains();
+    if(name==='deploy') loadDeps();
+    if(name==='console') logs(true);
+    schedule();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('[data-sec]').forEach(a => a.onclick = e => { e.preventDefault(); show(a.dataset.sec); closeMenu(); });
+  window.addEventListener('hashchange', () => show((location.hash||'#dashboard').slice(1)));
+  show((location.hash||'#dashboard').slice(1));
+
+  /* ---- power ---- */
+  let curStatus = '{{ info.status }}';
+  /* Buttons follow the state: Starting/Running -> Start disabled; Offline -> Stop disabled */
+  function applyPower(s){
+    curStatus = s;
+    const b = n => document.querySelector('.pw.' + n);
+    b('start').disabled = (s === 'running' || s === 'starting');
+    b('stop').disabled = (s === 'stopped');
+    b('restart').disabled = false;
+  }
+  function setStatus(s){ tag($('st'), s); tag($('st2'), s); applyPower(s); }
+  applyPower(curStatus);
+  async function act(a){
+    if(a === 'stop' && !(await ui.confirm('Stop this server?', {ok:'Stop', danger:true}))) return;
+    const btns = document.querySelectorAll('.pw'); btns.forEach(b => b.disabled = true);
+    try {
+      const r = await api('/api/projects/'+pid+'/'+a, {method:'POST'});
+      if(r && r.ok === false) { toast(r.error || 'Failed', 'err'); applyPower(curStatus); }
+      else {
+        toast({start:'Start sent', stop:'Stop sent', restart:'Restart sent'}[a] || 'OK');
+        setStatus(a === 'stop' ? 'stopped' : 'starting');
+      }
+      setTimeout(live, 900);
+    } catch(e){ toast(e.message,'err'); applyPower(curStatus); }
+  }
+
+  /* ---- live stats (2s while the console is open, 5s otherwise) ---- */
+  async function live(){
+    try {
+      const m = await api('/api/projects/'+pid+'/metrics');
+      const cpuV = m.cpu_percent==null ? 0 : m.cpu_percent, ramV = m.ram_mb==null ? 0 : m.ram_mb;
+      const cpu = cpuV.toFixed(2)+'%', ram = mib(ramV);
+      $('cpu').textContent = cpu; $('cpu2').textContent = cpu;
+      $('ram').textContent = ram; $('ram2').textContent = ram;
+      meter('m-cpu', cpuV, LIM.cpu); meter('m-ram', ramV, LIM.ram);
+      if(m.disk_mb!=null){ $('disk').textContent = mib(m.disk_mb); $('disk2').textContent = mib(m.disk_mb); meter('m-disk', m.disk_mb, LIM.disk); }
+      // a process younger than ~6s is shown as "Starting", like the reference panel
+      setStatus(m.status === 'running' && m.uptime_sec != null && m.uptime_sec < 6 ? 'starting' : m.status);
+      if(sec==='console' && !paused) await logs();
+    } catch(e){}
+  }
+  function schedule(){
+    clearTimeout(timer);
+    timer = setTimeout(async () => { if(!document.hidden) await live(); schedule(); }, sec==='console' ? 2000 : 5000);
+  }
+  schedule();
+
+  /* ---- console ---- */
+  const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
+  const RE_ERR = /error|exception|traceback|fatal|critical/i, RE_WARN = /\[WARN|warning/i, RE_INFO = /\[INFO\]/i;
+  function drawLog(stick){
+    const b = $('logBox');
+    let lines = raw.replace(ANSI, '').split('\n');
+    if(lines.length && lines[lines.length-1] === '') lines.pop();
+    counts(lines);
+    if(filt==='info') lines = lines.filter(x => RE_INFO.test(x));
+    if(filt==='err') lines = lines.filter(x => RE_ERR.test(x) || RE_WARN.test(x));
+    lines = lines.slice(-600);
+    if(!lines.length){ b.textContent = 'No logs yet.'; return; }
+    const f = document.createDocumentFragment();
+    lines.forEach(t => {
+      const s = document.createElement('span');
+      s.className = 'ln' + (RE_ERR.test(t) ? ' ln-err' : RE_WARN.test(t) ? ' ln-warn' : RE_INFO.test(t) ? ' ln-info' : '');
+      s.textContent = t || ' '; f.appendChild(s);
+    });
+    b.replaceChildren(f);
+    if(stick) b.scrollTop = b.scrollHeight;
+  }
+  function counts(L){
+    L = L.filter(Boolean); const c = n => '(' + (n > 99 ? '99+' : n) + ')';
+    $('n-all').textContent = c(L.length);
+    $('n-info').textContent = c(L.filter(x => RE_INFO.test(x)).length);
+    $('n-err').textContent = c(L.filter(x => RE_ERR.test(x) || RE_WARN.test(x)).length);
+  }
+  const hist = []; let hp = 0;
+  async function sendCmd(e){
+    e.preventDefault(); const i = $('cmd'), v = i.value.trim(); if(!v) return;
+    hist.push(v); hp = hist.length; i.value = '';
+    try {
+      const r = await postForm('/api/projects/'+pid+'/command', {command: v});
+      if(r && r.ok === false) toast(r.error || 'Failed', 'err');
+      setTimeout(() => logs(true), 500);
+    } catch(err){ toast(err.message, 'err'); }
+  }
+  function recall(){ if(!hist.length) return; hp = Math.max(0, hp - 1); $('cmd').value = hist[hp]; $('cmd').focus(); }
+  $('cmd').addEventListener('keydown', e => {
+    if(e.key === 'ArrowUp'){ e.preventDefault(); recall(); }
+    if(e.key === 'ArrowDown'){ e.preventDefault(); hp = Math.min(hist.length, hp + 1); $('cmd').value = hist[hp] || ''; }
+  });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') $('term').classList.remove('full'); });
+  async function clearLog(){
+    if(!(await ui.confirm('Clear all logs?', {ok:'Delete', danger:true}))) return;
+    try { await api('/api/projects/'+pid+'/logs', {method:'DELETE'}); raw = ''; drawLog(true); toast('Logs cleared'); } catch(e){ toast(e.message,'err'); }
+  }
+  async function logs(stick){
+    try {
+      const b = $('logBox'); const near = b.scrollTop + b.clientHeight >= b.scrollHeight - 40;
+      const d = await api('/api/projects/'+pid+'/logs');
+      if((d.logs || '') !== raw){ raw = d.logs || ''; drawLog(stick || near); }
+    } catch(e){}
+  }
+  function togglePause(){
+    paused = !paused; const b = $('pauseBtn'); b.classList.toggle('on', paused);
+    b.title = paused ? 'Resume' : 'Pause'; if(!paused) logs(true);
+  }
+  document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x===b)); filt = b.dataset.f; drawLog(true);
+  });
+  async function copyLog(){ try { await navigator.clipboard.writeText(raw.replace(ANSI, '')); toast('Copied'); } catch(e){ toast('Copy failed','err'); } }
+  drawLog(true);
+
+  /* ---- files ---- */
+  const join = n => (path ? path+'/' : '') + n;
+  const svg = (n, c) => { const s = document.createElementNS('http://www.w3.org/2000/svg','svg'); s.setAttribute('class','ic '+(c||'')); const u = document.createElementNS('http://www.w3.org/2000/svg','use'); u.setAttribute('href','#i-'+n); s.appendChild(u); return s; };
+  async function files(){
+    try { const d = await api('/api/projects/'+pid+'/files?path='+encodeURIComponent(path)); items = d.items || []; filesLoaded = true; $('fqAll').checked = false; renderFiles(); }
+    catch(e){ $('fl').innerHTML = ''; const p = document.createElement('p'); p.className='empty'; p.textContent = e.message; $('fl').appendChild(p); }
+  }
+  function fmtSize(b){
+    if(b == null || b === 0) return '—';
+    const u = ['B','KB','MB','GB']; let i = 0; let n = Number(b);
+    while(n >= 1024 && i < u.length-1){ n /= 1024; i++; }
+    return (i===0 ? n : n.toFixed(n < 10 ? 2 : 1)) + ' ' + u[i];
+  }
+  function isArchive(name){
+    const n = (name||'').toLowerCase();
+    return n.endsWith('.zip') || n.endsWith('.tar') || n.endsWith('.tar.gz') || n.endsWith('.tgz') || n.endsWith('.tar.bz2') || n.endsWith('.tbz2');
+  }
+  function renderFiles(){
+    const c = $('crumbs'); c.innerHTML = '';
+    const mk = (label, p) => { const b = document.createElement('button'); b.type='button'; b.textContent = label; b.dataset.fn = String(label).toLowerCase(); b.onclick = () => { path = p; files(); }; return b; };
+    c.appendChild(mk('home',''));
+    let acc = ''; path.split('/').filter(Boolean).forEach(seg => { acc = acc ? acc+'/'+seg : seg; c.appendChild(document.createTextNode(' › ')); c.appendChild(mk(seg, acc)); });
+    const q = $('fq').value.toLowerCase(), l = $('fl'); l.innerHTML = '';
+    const list = items.filter(i => i.name.toLowerCase().includes(q));
+    list.forEach(i => {
+      const arch = i.is_archive || isArchive(i.name);
+      const row = document.createElement('div'); row.className = 'fm-item';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.dataset.name = i.name; cb.dataset.isdir = i.is_dir ? '1' : '0'; cb.dataset.archive = arch ? '1' : '0';
+      cb.setAttribute('aria-label', 'Select ' + i.name);
+      row.appendChild(cb);
+      row.appendChild(svg(i.is_dir ? 'folder' : (arch ? 'archive' : 'file'), i.is_dir ? 'f' : 'd'));
+      const nm = document.createElement('span'); nm.className='nm'; nm.textContent = i.name; nm.title = i.name;
+      if(i.is_dir) nm.onclick = () => { path = join(i.name); files(); };
+      else if(!arch) nm.onclick = () => editFile(i.name);
+      row.appendChild(nm);
+      const sz = document.createElement('span'); sz.className='sz'; sz.textContent = i.is_dir ? '—' : fmtSize(i.size); row.appendChild(sz);
+      const dt = document.createElement('span'); dt.className='dt'; dt.textContent = fmtDate(i.modified); row.appendChild(dt);
+      const dots = document.createElement('button'); dots.type='button'; dots.className='dots'; dots.setAttribute('aria-label','Actions for '+i.name); dots.appendChild(svg('dots'));
+      dots.onclick = e => {
+        e.stopPropagation(); const had = row.querySelector('.rowmenu'); closeMenus(); if(had) return;
+        const m = document.createElement('div'); m.className = 'rowmenu';
+        const add = (label, fn) => { const b = document.createElement('button'); b.type='button'; b.textContent = label; b.onclick = () => { closeMenus(); fn(); }; m.appendChild(b); };
+        if(!i.is_dir){ add('Download', () => downloadFile(i.name)); if(!arch) add('Edit', () => editFile(i.name)); }
+        add('Rename', () => renameItem(i.name));
+        add('Copy', () => copyItem(i.name));
+        add('Move', () => moveItems([i.name]));
+        if(!i.is_dir && arch) add('Unarchive', () => unarchive(i.name));
+        add('Delete', () => delFiles([i.name]));
+        row.appendChild(m);
+      };
+      row.appendChild(dots);
+      l.appendChild(row);
+    });
+    if(!list.length){ const p = document.createElement('p'); p.className='empty'; p.textContent = q ? 'No files match your search.' : 'This directory seems to be empty.'; l.appendChild(p); }
+    selChanged();
+  }
+  function closeMenus(){ document.querySelectorAll('.rowmenu').forEach(m => m.remove()); }
+  document.addEventListener('click', closeMenus);
+
+  function selectedItems(){
+    return [...document.querySelectorAll('#fl input:checked')].map(c => ({ name: c.dataset.name, isDir: c.dataset.isdir === '1', isArchive: c.dataset.archive === '1' }));
+  }
+  function toggleAll(on){ document.querySelectorAll('#fl input[type=checkbox]').forEach(c => { c.checked = on; }); selChanged(); }
+  /* Toolbar like the reference panel: nothing selected = Create/Upload/New file/Trash; selection = Archive/Move/Delete */
+  function selChanged(){
+    const sel = selectedItems(), all = document.querySelectorAll('#fl input[type=checkbox]');
+    $('fmNormal').classList.toggle('hidden', sel.length > 0);
+    $('fmSel').classList.toggle('hidden', sel.length === 0);
+    $('selCount').textContent = sel.length ? sel.length + ' ' + T('selected') : '';
+    $('btnUnarchive').classList.toggle('hidden', !(sel.length === 1 && sel[0].isArchive));
+    $('btnDownload').classList.toggle('hidden', !(sel.length >= 1 && sel.some(x => !x.isDir)));
+    $('fqAll').checked = all.length > 0 && sel.length === all.length;
+    $('fqAll').indeterminate = sel.length > 0 && sel.length < all.length;
+  }
+  $('fl').addEventListener('change', e => { if(e.target.type === 'checkbox') selChanged(); });
+
+  async function newFile(){
+    const name = await ui.prompt('New file', '', {label:'File name', ok:'Create'}); if(!name) return;
+    const fd = new FormData(); fd.append('path', path); fd.append('extract', 'false'); fd.append('file', new File([''], name));
+    try { await api('/api/projects/'+pid+'/files/upload', {method:'POST', body:fd}); toast('File created'); files(); } catch(e){ toast(e.message,'err'); }
+  }
+  async function mkdir(){
+    const name = await ui.prompt('Create Directory', '', {label:'Directory name', ok:'Create'}); if(!name) return;
+    try { await postForm('/api/projects/'+pid+'/files/mkdir', {path, name}); files(); } catch(e){ toast(e.message,'err'); }
+  }
+
+  /* upload with progress + drag & drop */
+  function xhrUpload(url, fd, onProg){
+    return new Promise((res, rej) => {
+      const x = new XMLHttpRequest(); x.open('POST', url); x.withCredentials = true;
+      x.upload.onprogress = e => { if(e.lengthComputable) onProg(e.loaded); };
+      x.onload = () => {
+        let d = null; try { d = JSON.parse(x.responseText); } catch(_){}
+        if(x.status >= 200 && x.status < 300) return res(d);
+        const m = d && (d.detail || d.message); rej(new Error(m ? (typeof m === 'string' ? m : JSON.stringify(m)) : (x.statusText || 'Upload failed')));
+      };
+      x.onerror = () => rej(new Error('Network error')); x.send(fd);
+    });
+  }
+  async function uploadFiles(fl){
+    let lastFolder = null;
+    const list = [...fl]; if(!list.length) return;
+    const total = list.reduce((a, f) => a + f.size, 0) || 1, bar = $('upbar'), fill = bar.firstElementChild;
+    let done = 0, extractedAny = false; bar.classList.add('show'); fill.style.width = '0%';
+    try {
+      for(const file of list){
+        const fd = new FormData(); fd.append('path', path); fd.append('file', file);
+        fd.append('extract', isArchive(file.name) ? 'true' : 'false');   // archives are unpacked automatically
+        const res = await xhrUpload('/api/projects/'+pid+'/files/upload', fd, loaded => { fill.style.width = (((done + loaded) / total) * 100).toFixed(1) + '%'; });
+        done += file.size; if(res && res.extracted){ extractedAny = true; lastFolder = res.folder || lastFolder; }
+      }
+      toast(extractedAny ? 'Uploaded & extracted' : 'Uploaded');
+      if(lastFolder){ path = join(lastFolder); }
+    } catch(e){ toast(e.message, 'err'); }
+    setTimeout(() => bar.classList.remove('show'), 400);
+    $('fi').value = ''; files();
+  }
+  function up(){ uploadFiles($('fi').files); }
+  (function(){
+    const w = $('fmWrap'); let depth = 0;
+    w.addEventListener('dragenter', e => { if(!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); depth++; w.classList.add('drag'); });
+    w.addEventListener('dragover', e => { if(w.classList.contains('drag')) e.preventDefault(); });
+    w.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if(!depth) w.classList.remove('drag'); });
+    w.addEventListener('drop', e => {
+      if(!w.classList.contains('drag')) return;
+      e.preventDefault(); depth = 0; w.classList.remove('drag');
+      const its = [...(e.dataTransfer.items || [])];
+      if(its.some(i => { const en = i.webkitGetAsEntry && i.webkitGetAsEntry(); return en && en.isDirectory; })){ toast('Folders are not supported — upload them as a ZIP','err'); return; }
+      uploadFiles(e.dataTransfer.files);
+    });
+  })();
+
+  async function unarchive(name){
+    if(!(await ui.confirm('Unarchive "'+name+'" ?\nFiles will extract into a folder (like Apsara File Manager).', {ok:'Unarchive', title:'Extract archive'}))) return;
+    try {
+      toast('Extracting…');
+      const fd = new FormData();
+      fd.append('path', join(name));
+      fd.append('into_folder', 'true');
+      fd.append('promote', 'true');
+      const res = await api('/api/projects/'+pid+'/files/unarchive', {method:'POST', body:fd});
+      const n = (res && res.extracted) || 0;
+      const folder = res && res.folder;
+      toast('Unarchived '+n+' file(s)' + (res && res.promote && res.promote.promoted ? ' (moved to root)' : (folder ? ' → '+folder : '')) + (res && res.start_command ? ' · start: '+res.start_command : ''));
+      if(folder){
+        // open extracted folder so user can start code
+        path = join(folder);
+      }
+      files();
+    } catch(e){ toast(e.message||'Unarchive failed','err'); }
+  }
+  async function unarchiveSelected(){
+    const sel = selectedItems().filter(x => x.isArchive);
+    if(!sel.length){ toast('Select a .zip / .tar archive first','err'); return; }
+    for(const s of sel){ await unarchive(s.name); }
+  }
+  function downloadFile(name){ window.open('/api/projects/'+pid+'/files/download?path='+encodeURIComponent(join(name)), '_blank'); }
+  function downloadSelected(){
+    const sel = selectedItems().filter(x => !x.isDir);
+    if(!sel.length){ toast('Select a file to download','err'); return; }
+    sel.forEach(s => downloadFile(s.name));
+  }
+  /* Delete dialog: Cancel / Permanently delete / Move to trash */
+  function delFiles(names){
+    if(!names.length) return;
+    const body = document.createElement('div');
+    const msg = document.createElement('p'); msg.className = 'modal-msg';
+    const b = document.createElement('b'); b.textContent = names.length + (names.length === 1 ? ' file' : ' files');
+    msg.append(T('Are you sure you want to delete') + ' ', b, '? ' + T('Permanently deleted files cannot be recovered. Files moved to the trash can be restored from the Trash.'));
+    const list = document.createElement('div'); list.className = 'del-list';
+    names.slice(0, 12).forEach(n => { const d = document.createElement('div'); d.textContent = n; list.appendChild(d); });
+    if(names.length > 12){ const d = document.createElement('div'); d.className = 'muted'; d.textContent = T('and') + ' ' + (names.length - 12) + ' ' + T('others'); list.appendChild(d); }
+    body.append(msg, list);
+    const run = mode => async dlg => {
+      dlg.foot.querySelectorAll('button').forEach(x => x.disabled = true);
+      try {
+        const fd = new FormData(); fd.append('paths', JSON.stringify(names.map(join))); fd.append('mode', mode);
+        await api('/api/projects/'+pid+'/files/delete', {method:'POST', body: fd});
+        toast(mode === 'trash' ? 'Moved to trash' : 'Deleted'); dlg.close(true); files();
+      } catch(e){ toast(e.message,'err'); dlg.foot.querySelectorAll('button').forEach(x => x.disabled = false); }
+    };
+    ui.open({ title: 'Delete Files', body, actions: [
+      { label: 'Cancel', run: d => d.close(false) },
+      { label: 'Permanently delete', cls: 'btn-red-outline', run: run('permanent') },
+      { label: 'Move to trash', cls: 'btn-red-solid', run: run('trash') },
+    ]});
+  }
+
+  /* Trash: restore or delete forever */
+  async function openTrash(){
+    const box = document.createElement('div');
+    const dlg = ui.open({ title: 'Trash', body: box, wide: true, actions: [
+      { label: 'Empty trash', cls: 'btn-red-outline', run: async d => {
+          if(!(await ui.confirm('Permanently delete everything in the trash?', {ok:'Empty trash', danger:true}))) return;
+          const fd = new FormData(); fd.append('all','1');
+          try { await api('/api/projects/'+pid+'/trash/purge', {method:'POST', body: fd}); toast('Trash emptied'); draw(); } catch(e){ toast(e.message,'err'); } } },
+      { label: 'Close', run: d => d.close() },
+    ]});
+    async function act2(kind, id){
+      const fd = new FormData(); fd.append('ids', JSON.stringify([id]));
+      try { await api('/api/projects/'+pid+'/trash/'+kind, {method:'POST', body: fd}); toast(kind === 'restore' ? 'Restored' : 'Deleted'); await draw(); if(kind === 'restore') files(); }
+      catch(e){ toast(e.message,'err'); }
+    }
+    async function draw(){
+      let d; try { d = await api('/api/projects/'+pid+'/trash'); } catch(e){ box.textContent = e.message; return; }
+      box.innerHTML = '';
+      if(!d.items.length){ const p = document.createElement('p'); p.className = 'empty'; p.textContent = 'The trash is empty.'; box.appendChild(p); return; }
+      d.items.forEach(m => {
+        const row = document.createElement('div'); row.className = 'trash-row';
+        const info = document.createElement('div'); info.className = 'trash-info';
+        const nm = document.createElement('b'); nm.textContent = m.name; nm.title = m.orig_path;
+        const sub = document.createElement('small'); sub.className = 'muted'; sub.textContent = (m.is_dir ? 'folder' : fmtSize(m.size)) + ' · ' + m.orig_path + ' · ' + fmtDate(m.deleted_at);
+        info.append(nm, sub);
+        const r = document.createElement('button'); r.type = 'button'; r.className = 'btn-soft btn-sm'; r.textContent = T('Restore'); r.onclick = () => act2('restore', m.id);
+        const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-soft btn-sm btn-red-outline'; x.textContent = T('Delete forever'); x.onclick = () => act2('purge', m.id);
+        row.append(info, r, x); box.appendChild(row);
+      });
+    }
+    draw();
+  }
+  function delSelected(){ const n = selectedItems().map(s => s.name); if(!n.length){ toast('Select files first','err'); return; } delFiles(n); }
+  async function renameItem(name){
+    const nn = await ui.prompt('Rename', name, {label:'New name', ok:'Rename'}); if(!nn || nn === name) return;
+    try { const fd = new FormData(); fd.append('path', join(name)); fd.append('new_name', nn); await api('/api/projects/'+pid+'/files/rename', {method:'POST', body:fd}); toast('Renamed'); files(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function copyItem(name){
+    const dest = await ui.prompt('Copy', path, {label:'Destination folder', ok:'Copy', allowEmpty:true}); if(dest === null) return;
+    try { const fd = new FormData(); fd.append('path', join(name)); fd.append('dest_path', dest.replace(/^\/+|\/+$/g,'')); await api('/api/projects/'+pid+'/files/copy', {method:'POST', body:fd}); toast('Copied'); files(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  async function moveItems(names){
+    if(!names.length){ toast('Select files first','err'); return; }
+    const dest = await ui.prompt('Move', path, {label:'Destination folder', ok:'Move', allowEmpty:true}); if(dest === null) return;
+    const to = dest.replace(/^\/+|\/+$/g,'');
+    try {
+      for(const n of names){ const fd = new FormData(); fd.append('path', join(n)); fd.append('dest_path', to); await api('/api/projects/'+pid+'/files/move', {method:'POST', body:fd}); }
+      toast('Moved');
+    } catch(e){ toast(e.message,'err'); }
+    files();
+  }
+  function moveSelected(){ moveItems(selectedItems().map(s => s.name)); }
+  async function editFile(name){
+    const full = join(name);
+    try {
+      const d = await api('/api/projects/'+pid+'/files/read?path='+encodeURIComponent(full));
+      ui.editor(name, d.content, async content => {
+        const fd = new FormData(); fd.append('path', full); fd.append('content', content);
+        await api('/api/projects/'+pid+'/files/write', {method:'POST', body:fd});
+      });
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function compressSelected(){
+    const sel = selectedItems();
+    if(!sel.length){ toast('Select files first','err'); return; }
+    try {
+      const fd = new FormData(); fd.append('path', path); fd.append('names', sel.map(s=>s.name).join(','));
+      const r = await api('/api/projects/'+pid+'/files/compress', {method:'POST', body:fd});
+      toast('Created '+r.filename); files();
+    } catch(e){ toast(e.message,'err'); }
+  }
+
+  /* ---- backups ---- */
+  async function loadBackups(){
+    const box = $('bkList');
+    try {
+      const d = await api('/api/projects/'+pid+'/backups');
+      $('bkCount').textContent = d.items.length + ' backup' + (d.items.length === 1 ? '' : 's');
+      if(!d.items.length){ box.innerHTML = '<div class="panel-card empty">No backups yet.</div>'; return; }
+      box.innerHTML = d.items.map(b => `<div class="panel-card bk">
+        <span class="n"><svg class="ic"><use href="#i-archive"/></svg> ${esc(b.filename)}</span>
+        <span class="muted sm">${mib(b.size_bytes / 1048576)} · ${esc(fmtDate(b.created_at))}</span>
+        <span class="acts">
+          <button type="button" class="btn-soft btn-xs" data-dl="${b.id}" ${b.exists ? '' : 'disabled'} title="Download backup"><svg class="ic"><use href="#i-download"/></svg></button>
+          <button type="button" class="btn-soft btn-xs" data-rs="${b.id}" ${b.exists ? '' : 'disabled'}>Restore</button>
+          <button type="button" class="btn-soft btn-red btn-xs" data-rm="${b.id}">Delete</button>
+        </span></div>`).join('');
+    } catch(e){ box.innerHTML = '<div class="panel-card empty">' + esc(e.message) + '</div>'; }
+  }
+  $('bkList').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if(!b) return;
+    const base = '/api/projects/'+pid+'/backups/';
+    if(b.dataset.dl){ window.location.href = base + b.dataset.dl + '/download'; }
+    else if(b.dataset.rs){
+      if(!(await ui.confirm('Restore this backup? The server will stop and files will be overwritten.', {ok:'Restore', danger:true}))) return;
+      try { const fd = new FormData(); fd.append('backup_id', b.dataset.rs); await api('/api/projects/'+pid+'/backup/restore', {method:'POST', body:fd}); toast('Restored'); filesLoaded = false; live(); }
+      catch(err){ toast(err.message,'err'); }
+    } else if(b.dataset.rm){
+      if(!(await ui.confirm('Delete this backup?', {ok:'Delete', danger:true}))) return;
+      try { await api(base + b.dataset.rm, {method:'DELETE'}); toast('Backup deleted'); loadBackups(); } catch(err){ toast(err.message,'err'); }
+    }
+  });
+  async function backup(btn){
+    try { await withLoading(btn, () => api('/api/projects/'+pid+'/backup', {method:'POST'})); toast('Backup created'); loadBackups(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+
+  /* ---- environment variables ---- */
+  let envItems = [], envShow = false;
+  async function loadEnv(){ try { const d = await api('/api/projects/'+pid+'/env'); envItems = d.items || []; renderEnv(); } catch(e){ toast(e.message,'err'); } }
+  function renderEnv(){
+    const box = $('envList');
+    $('envCount').textContent = envItems.length + ' variable' + (envItems.length === 1 ? '' : 's');
+    if(!envItems.length){ box.innerHTML = '<p class="muted">No variables yet.</p>'; return; }
+    box.innerHTML = envItems.map((v, i) => `<div class="env-row"><code>${esc(v.key)}=${envShow ? esc(v.value) : '••••••'}</code>
+      <span class="acts"><button type="button" class="btn-soft btn-xs" data-edit="${i}">Edit</button>
+      <button type="button" class="btn-soft btn-red btn-xs" data-del="${i}">Delete</button></span></div>`).join('');
+  }
+  $('envList').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if(!b) return;
+    if(b.dataset.edit !== undefined){
+      const v = envItems[+b.dataset.edit]; $('ek').value = v.key; $('ev').value = v.value; $('envAdd').textContent = 'Update'; $('ev').focus();
+    } else if(b.dataset.del !== undefined){
+      const v = envItems[+b.dataset.del];
+      if(!(await ui.confirm(T('Delete') + ' ' + v.key + '?', {ok:'Delete', danger:true}))) return;
+      try { await api('/api/projects/'+pid+'/env/'+encodeURIComponent(v.key), {method:'DELETE'}); toast('Variable deleted'); loadEnv(); } catch(err){ toast(err.message,'err'); }
+    }
+  });
+  function toggleEnv(){
+    envShow = !envShow; $('envEye').querySelector('span').textContent = envShow ? 'Hide values' : 'Show values'; renderEnv();
+  }
+  async function addEnv(){
+    const k = $('ek').value.trim(); if(!k){ $('ek').focus(); return; }
+    try { await postForm('/api/projects/'+pid+'/env', {key:k, value:$('ev').value}); toast('Variable saved'); $('ek').value = ''; $('ev').value = ''; $('envAdd').textContent = 'Add'; loadEnv(); }
+    catch(e){ toast(e.message,'err'); }
+  }
+  ['ek','ev'].forEach(id => $(id).addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); addEnv(); } }));
+
+  /* ---- domains ---- */
+  async function addDomain(){
+    const domain = $('domInput').value.trim(); if(!domain) return;
+    try {
+      const fd = new FormData(); fd.append('domain', domain);
+      const r = await api('/api/projects/'+pid+'/domains', {method:'POST', body:fd});
+      toast('Domain added'); $('domInput').value=''; loadDomains();
+      if(r.dns_instructions) toast(r.dns_instructions);
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function loadDomains(){
+    const box = $('domList');
+    try {
+      const d = await api('/api/projects/'+pid+'/domains');
+      if(!d.items.length){ box.innerHTML = '<p class="muted empty">No domains yet.</p>'; return; }
+      box.innerHTML = d.items.map(x => `<div class="row2"><span class="k mono">${esc(x.domain)}</span><span class="v">
+        <span class="tag tag-${String(x.status).toLowerCase() === 'verified' ? 'ok' : 'warn'}">${esc(x.status)}</span>
+        <span class="muted sm">SSL: ${esc(x.ssl_status)}</span>
+        <button type="button" class="btn-soft btn-xs" data-ver="${x.id}">Verify</button>
+        <button type="button" class="btn-soft btn-red btn-xs" data-rmd="${x.id}">Remove</button></span></div>`).join('');
+    } catch(e){ box.innerHTML = '<p class="muted">' + esc(e.message) + '</p>'; }
+  }
+  $('domList').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if(!b) return;
+    if(b.dataset.ver){
+      try { await api('/api/projects/'+pid+'/domains/'+b.dataset.ver+'/verify', {method:'POST'}); toast('Verified'); loadDomains(); } catch(err){ toast(err.message,'err'); }
+    } else if(b.dataset.rmd){
+      if(!(await ui.confirm('Remove domain?', {ok:'Remove', danger:true}))) return;
+      try { await api('/api/projects/'+pid+'/domains/'+b.dataset.rmd, {method:'DELETE'}); toast('Removed'); loadDomains(); } catch(err){ toast(err.message,'err'); }
+    }
+  });
+  $('domInput').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); addDomain(); } });
+
+  /* ---- git deploy ---- */
+  async function gitDeploy(btn){
+    const repo = $('gitRepo').value.trim(); if(!repo){ $('gitRepo').focus(); return; }
+    try {
+      await withLoading(btn, async () => {
+        const fd = new FormData();
+        fd.append('repo_url', repo); fd.append('branch', $('gitBranch').value||'main'); fd.append('token', $('gitToken').value||'');
+        const r = await api('/api/projects/'+pid+'/deploy/git', {method:'POST', body:fd});
+        $('gitLog').textContent = r.log || (r.ok ? 'OK' : (r.error||''));
+        toast(r.ok ? 'Deployed' : 'Deploy failed', r.ok ? 'ok' : 'err');
+        $('gitToken').value = ''; filesLoaded = false; loadDeps();
+      });
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function loadDeps(){
+    try {
+      const d = await api('/api/projects/'+pid+'/deployments'); const box = $('depList');
+      if(!d.items.length){ box.innerHTML = '<p class="muted empty">No deployments yet.</p>'; return; }
+      box.innerHTML = d.items.map(x => `<div class="row2"><span class="k mono">${esc(x.repo_url)} @ ${esc(x.branch)}</span><span class="v">
+        <span class="tag tag-${/succe|ok|done/i.test(x.status) ? 'ok' : /fail|error/i.test(x.status) ? 'off' : 'warn'}">${esc(x.status)}</span></span></div>`).join('');
+    } catch(e){}
+  }
+
+  /* ---- startup / settings ---- */
+  async function save(btn, from){
+    const portEl = from === 'settings' ? $('sp2') : $('sp');
+    const fd = new FormData();
+    fd.append('start_command', $('sc').value); fd.append('port', portEl.value || '0');
+    fd.append('auto_start', $('as').checked); fd.append('auto_restart', $('ar').checked);
+    fd.append('domain', $('sd').value); fd.append('name', $('sn').value);
+    try {
+      await withLoading(btn, () => api('/api/projects/'+pid+'/settings', {method:'POST', body:fd}));
+      $('sp').value = portEl.value; $('sp2').value = portEl.value;
+      const nm = $('sn').value.trim();
+      if(nm){ document.querySelector('.srv-top h2').textContent = nm; const t = document.querySelector('.topbar-title'); if(t) t.textContent = nm; document.title = nm + ' — Anajak Host'; }
+      toast('Saved');
+    } catch(e){ toast(e.message,'err'); }
+  }
+  async function delP(){
+    const v = await ui.prompt('Delete service', '', {label: T('Server Name') + ': ' + PNAME, ok:'Delete'});
+    if(v === null) return;
+    if(v !== PNAME){ toast('Name does not match','err'); return; }
+    try { await api('/api/projects/'+pid, {method:'DELETE'}); location.href = '/dashboard'; } catch(e){ toast(e.message,'err'); }
+  }
+
+</script>
+{% endblock %}

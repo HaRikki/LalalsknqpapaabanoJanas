@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{% block title %}Anajak Host{% endblock %}</title>
+  <link rel="icon" href="/static/img/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/css/anajak-ui.css" />
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <div class="container">
+    <div class="topbar">
+      <a class="brand" href="/"><img class="logo-img" src="/static/img/logo.png" alt="" /> Anajak Host</a>
+      <div class="topbar-right">
+        <button type="button" class="icon-btn lang-btn" aria-label="Language">ខ្មែរ</button>
+        {% block topbar_right %}
+        {% if user %}
+        <a class="btn btn-gradient btn-sm" href="/dashboard">Dashboard</a>
+        {% else %}
+        <a class="btn btn-ghost btn-sm" href="/login">Login</a>
+        <a class="btn btn-gradient btn-sm" href="/register">Register</a>
+        {% endif %}
+        {% endblock %}
+      </div>
+    </div>
+  </div>
+  {% block content %}{% endblock %}
+  <footer class="footer container">© Anajak Host · Cloud hosting for bots, websites, APIs &amp; games</footer>
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/i18n.js"></script>
+  <script src="/static/js/ui-fx.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

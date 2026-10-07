@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Verifying you are human — Anajak Host</title>
+  <link rel="icon" href="/static/img/logo.png" type="image/png" />
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:#000;color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+    .wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:1.5rem 1.25rem 2rem;max-width:480px;margin:0 auto;width:100%}
+    .logo{width:48px;height:48px;border-radius:12px;margin-bottom:1.25rem;object-fit:contain}
+    h1.site{font-size:clamp(1.35rem,4.5vw,1.75rem);font-weight:700;letter-spacing:-.02em;margin-bottom:.85rem;line-height:1.2}
+    h2.title{font-size:clamp(1.15rem,3.8vw,1.45rem);font-weight:600;margin-bottom:.4rem;line-height:1.25}
+    .sub{font-size:.95rem;color:#a0a0a0;margin-bottom:1rem}
+    .desc{font-size:.9rem;color:#8a8a8a;line-height:1.55;margin-bottom:1.5rem}
+    .box{background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:1rem 1.1rem;display:flex;align-items:center;gap:.85rem;min-height:64px}
+    .spinner{width:22px;height:22px;border:2.5px solid #333;border-top-color:#22c55e;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .status-text{font-size:.95rem;color:#ccc;flex:1}
+    .status-text.ok{color:#4ade80}
+    .status-text.err{color:#f87171}
+    .cf-mark{margin-left:auto;opacity:.85;font-size:.7rem;color:#888;text-align:right;line-height:1.3}
+    .cf-mark b{color:#f48120;font-size:.8rem}
+    #turnstile-wrap{margin-top:1rem;display:flex;justify-content:center;min-height:70px}
+    .err-box{display:none;margin-top:1rem;padding:.85rem 1rem;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.35);border-radius:10px;color:#fca5a5;font-size:.88rem;line-height:1.45}
+    .err-box.show{display:block}
+    .btn-retry{display:none;margin-top:1rem;width:100%;padding:.75rem 1rem;border-radius:10px;border:1px solid #444;background:#222;color:#eee;font-size:.95rem;font-weight:600;cursor:pointer}
+    .btn-retry.show{display:block}
+    .btn-retry:active{background:#2a2a2a}
+    .foot{padding:1rem;text-align:center;font-size:.72rem;color:#555;border-top:1px solid #1a1a1a}
+    .foot a{color:#777;text-decoration:none}
+    @media(max-width:380px){.wrap{padding:1.1rem}}
+  </style>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" async defer></script>
+</head>
+<body>
+  <div class="wrap">
+    <img class="logo" src="/static/img/logo.png" alt="Anajak Host" width="48" height="48" onerror="this.style.display='none'"/>
+    <h1 class="site">Anajak Host</h1>
+    <h2 class="title" id="mainTitle">Verifying you are human.</h2>
+    <p class="sub" id="subText">This may take a few seconds.</p>
+    <p class="desc">This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot.</p>
+
+    <div class="box" id="statusBox">
+      <div class="spinner" id="spinner"></div>
+      <span class="status-text" id="statusText">Verifying…</span>
+      <div class="cf-mark"><b>CLOUDFLARE</b><br/>Turnstile</div>
+    </div>
+
+    <div id="turnstile-wrap">
+      <div id="cf-turnstile"></div>
+    </div>
+
+    <div class="err-box" id="errBox"></div>
+    <button type="button" class="btn-retry" id="btnRetry" onclick="retryVerify()">Try again</button>
+  </div>
+  <div class="foot">
+    Ray ID: <span id="rayId">—</span><br/>
+    Performance and Security · Anajak Host
+  </div>
+
+  <script>
+    const SITE_KEY = {{ site_key | tojson }};
+    const NEXT = {{ next_url | tojson }};
+    const ENABLED = {{ enabled | tojson }};
+    let widgetId = null;
+    let verifying = false;
+
+    function ray() {
+      const a = Math.random().toString(16).slice(2, 10);
+      const b = Math.random().toString(16).slice(2, 10);
+      return a + b;
+    }
+    document.getElementById('rayId').textContent = ray();
+
+    function showErr(msg) {
+      const box = document.getElementById('errBox');
+      box.textContent = msg;
+      box.classList.add('show');
+      document.getElementById('btnRetry').classList.add('show');
+      document.getElementById('spinner').style.display = 'none';
+      const st = document.getElementById('statusText');
+      st.textContent = 'Verification failed';
+      st.className = 'status-text err';
+      document.getElementById('mainTitle').textContent = 'Verification failed';
+      document.getElementById('subText').textContent = 'Please try again.';
+      verifying = false;
+    }
+
+    function showOk() {
+      document.getElementById('spinner').style.display = 'none';
+      const st = document.getElementById('statusText');
+      st.textContent = 'Verification successful. Redirecting…';
+      st.className = 'status-text ok';
+      document.getElementById('mainTitle').textContent = 'Verification successful.';
+      document.getElementById('subText').textContent = 'Waiting for Anajak Host to respond…';
+      document.getElementById('errBox').classList.remove('show');
+      document.getElementById('btnRetry').classList.remove('show');
+    }
+
+    async function submitToken(token) {
+      if (verifying) return;
+      verifying = true;
+      document.getElementById('statusText').textContent = 'Verifying…';
+      document.getElementById('statusText').className = 'status-text';
+      document.getElementById('spinner').style.display = 'block';
+      document.getElementById('errBox').classList.remove('show');
+      try {
+        const fd = new FormData();
+        fd.append('cf-turnstile-response', token);
+        fd.append('next', NEXT || '/');
+        const r = await fetch('/api/verify/turnstile', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin'
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) {
+          showErr(data.detail || data.message || 'Verification failed. Please try again.');
+          if (widgetId != null && window.turnstile) {
+            try { turnstile.reset(widgetId); } catch(e) {}
+          }
+          return;
+        }
+        showOk();
+        setTimeout(function() {
+          window.location.replace(data.redirect || NEXT || '/');
+        }, 600);
+      } catch (e) {
+        showErr('Network error. Please try again.');
+        if (widgetId != null && window.turnstile) {
+          try { turnstile.reset(widgetId); } catch(err) {}
+        }
+      }
+    }
+
+    function onTurnstileLoad() {
+      if (!ENABLED || !SITE_KEY) {
+        showErr('Human verification is not configured (missing Turnstile site key).');
+        return;
+      }
+      widgetId = turnstile.render('#cf-turnstile', {
+        sitekey: SITE_KEY,
+        theme: 'dark',
+        size: 'normal',
+        callback: function(token) { submitToken(token); },
+        'error-callback': function() {
+          showErr('Challenge could not load. Check your connection and try again.');
+        },
+        'expired-callback': function() {
+          showErr('Challenge expired. Please try again.');
+        }
+      });
+    }
+
+    function retryVerify() {
+      verifying = false;
+      document.getElementById('mainTitle').textContent = 'Verifying you are human.';
+      document.getElementById('subText').textContent = 'This may take a few seconds.';
+      document.getElementById('statusText').textContent = 'Verifying…';
+      document.getElementById('statusText').className = 'status-text';
+      document.getElementById('spinner').style.display = 'block';
+      document.getElementById('errBox').classList.remove('show');
+      document.getElementById('btnRetry').classList.remove('show');
+      if (widgetId != null && window.turnstile) {
+        try { turnstile.reset(widgetId); } catch(e) {}
+      } else if (window.turnstile && SITE_KEY) {
+        onTurnstileLoad();
+      }
+    }
+
+    // If script already loaded
+    if (window.turnstile) onTurnstileLoad();
+  </script>
+</body>
+</html>
